@@ -139,8 +139,8 @@ with st.sidebar:
     st.markdown("**Hierarchy**")
     st.markdown("""
     <div class="sb-metric"><span class="sb-key">BU</span><span class="sb-val">4 units</span></div>
-    <div class="sb-metric"><span class="sb-key">Segments</span><span class="sb-val">16</span></div>
-    <div class="sb-metric"><span class="sb-key">Subsegments</span><span class="sb-val">108</span></div>
+    <div class="sb-metric"><span class="sb-key">Segments</span><span class="sb-val">24</span></div>
+    <div class="sb-metric"><span class="sb-key">Subsegments</span><span class="sb-val">134</span></div>
     <div class="sb-metric"><span class="sb-key">Periods</span><span class="sb-val">1–42 + forecast 43–48</span></div>
     """, unsafe_allow_html=True)
 
@@ -203,7 +203,7 @@ with st.container():
         <div class="agent-msg">
             <div class="agent-label">Revera</div>
             Hello! I'm <b style="color:#00e5b8">Revera</b>, the Siemens Advanta forecast intelligence agent.
-            I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 16 segments and 108 subsegments</b> —
+            I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 24 segments and 134 subsegments</b> —
             42 historical periods plus a 6-period XGBoost forecast (P.43–48), reconciled with MinT shrink
             (R² 0.9866 · wMAPE 10.70% · Walk-Forward CV).<br><br>
             Ask me anything — I can show overviews, rankings, comparisons, trend analysis, and more.
