@@ -284,16 +284,15 @@ def generate_pdf():
         "Blue: historical revenue (P.1–42) · Orange: XGBoost + MinT reconciled forecast (P.43–48). "
         "Dashed line marks the forecast boundary.", S["small"]))
 
-    # ── BU FORECAST CHART ──────────────────────────────────────────────────
-    story.append(Spacer(1, 6))
-    story.append(_chart_bu_fc(BU_FC, PERIODS_FORECAST))
-
     # ── PAGE BREAK ─────────────────────────────────────────────────────────
     story.append(PageBreak())
 
-    # ── BU HISTORICAL CHART (page 2) ───────────────────────────────────────
+    # ── BU CHARTS (page 2) ────────────────────────────────────────────────
     story.append(Paragraph("Historical Revenue by Business Unit (P.1–42)", S["section"]))
     story.append(_chart_bu_hist(BU_HIST, PERIODS_HIST))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("Revenue Forecast by Business Unit (P.43–48)", S["section"]))
+    story.append(_chart_bu_fc(BU_FC, PERIODS_FORECAST))
 
     # ── BU FORECAST TABLE ──────────────────────────────────────────────────
     story.append(Paragraph("Forecast by Business Unit (P.43–48)", S["section"]))
