@@ -125,6 +125,8 @@ def _render_breadcrumb():
     st.markdown(html, unsafe_allow_html=True)
 
 # ── SIDEBAR ────────────────────────────────────────────────────────────────
+st.logo("revera_icon.png")
+
 with st.sidebar:
     st.markdown("## ◆ Revera")
     st.caption("Siemens Advanta · Forecast Intelligence")
@@ -146,7 +148,7 @@ with st.sidebar:
     <div class="sb-metric"><span class="sb-key">BU</span><span class="sb-val">4 units</span></div>
     <div class="sb-metric"><span class="sb-key">Segments</span><span class="sb-val">16</span></div>
     <div class="sb-metric"><span class="sb-key">Subsegments</span><span class="sb-val">108</span></div>
-    <div class="sb-metric"><span class="sb-key">Periods</span><span class="sb-val">37–42</span></div>
+    <div class="sb-metric"><span class="sb-key">Periods</span><span class="sb-val">1–42 + forecast 43–48</span></div>
     """, unsafe_allow_html=True)
 
     st.divider()

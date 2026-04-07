@@ -3,9 +3,12 @@ import numpy as np
 import sqlite3
 import plotly.graph_objects as go
 import plotly.express as px
-from data import (BU as _BU, SEG as _SEG, SUB as _SUB, PERIODS,
+from data import (BU as _BU, SEG as _SEG, SUB as _SUB,
                   BU_HIST, BU_FC, SEG_HIST, SEG_FC, SUB_HIST, SUB_FC,
                   PERIODS_HIST, PERIODS_FORECAST)
+
+PERIODS = PERIODS_HIST          # P.1–42 full history (used for charts/tables)
+NLU_PERIODS = list(range(37, 43))  # P.37–42 — maps NLU 0-based period index → period number
 
 # --- SQLITE DB INIT ---
 # Table 'forecast'  : in-sample P.37-42 (legacy, used by existing intent builders)
@@ -94,18 +97,17 @@ def fetch_ds(ids, level=None):
     placeholders = ",".join("?" * len(ids))
     if level:
         df = pd.read_sql(
-            f"SELECT id, period_idx, revenue FROM forecast WHERE level=? AND id IN ({placeholders})",
+            f"SELECT id, period, revenue FROM hist WHERE level=? AND id IN ({placeholders})",
             conn, params=(level, *ids)
         )
     else:
         df = pd.read_sql(
-            f"SELECT id, period_idx, revenue FROM forecast WHERE id IN ({placeholders})",
+            f"SELECT id, period, revenue FROM hist WHERE id IN ({placeholders})",
             conn, params=tuple(ids)
         )
     ds = {}
     for id_, group in df.groupby("id"):
-        v = group.sort_values("period_idx")["revenue"].tolist()
-        # Guard: truncate to PERIODS length in case of duplicate level rows
+        v = group.sort_values("period")["revenue"].tolist()
         ds[id_] = v[:len(PERIODS)]
     return ds
 
@@ -142,7 +144,7 @@ def make_bar_chart(title, x_labels, values, color_fn=None):
 def make_table_df(ids, data, level_label, single_period=None, show_volatility=False):
     rows = []
     for id_ in ids:
-        v = data.get(id_, [0]*6)
+        v = data.get(id_, [0]*len(PERIODS))
         if len(v) < len(PERIODS):
             v = v + [0] * (len(PERIODS) - len(v))  # pad to full length
         g = cagr(v)
@@ -155,8 +157,8 @@ def make_table_df(ids, data, level_label, single_period=None, show_volatility=Fa
             row[f"P.{single_period}"] = fmt(v[period_idx])
             row["CAGR"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
         else:
-            row["P.37"] = fmt(v[0])
-            row["P.42"] = fmt(v[-1])
+            row[f"P.{PERIODS[0]}"] = fmt(v[0])
+            row[f"P.{PERIODS[-1]}"] = fmt(v[-1])
             row["CAGR"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
             row["Peak"] = f"P.{peak_period}"
         row["Avg/period"] = fmt(avg(v))
@@ -220,7 +222,7 @@ def build_response(parsed: dict) -> dict:
     elif intent == "ranking":
         single_period = None
         if periods and len(periods) == 1:
-            single_period = PERIODS[periods[0]]
+            single_period = NLU_PERIODS[periods[0]]
         parent_id = None
         if ids:
             from data import SEG_TO_BU as _S2B, SUB_TO_SEG as _S2S
@@ -233,7 +235,7 @@ def build_response(parsed: dict) -> dict:
     else:
         single_period = None
         if periods and len(periods) == 1:
-            single_period = PERIODS[periods[0]]
+            single_period = NLU_PERIODS[periods[0]]
         parent_id = None
         if ids:
             from data import SEG_TO_BU as _S2B, SUB_TO_SEG as _S2S
@@ -276,8 +278,8 @@ def _executive():
     bu_df = pd.read_sql("""
         SELECT p1.id,
                (p2.revenue - p1.revenue)*100.0 / ABS(p1.revenue) as growth_pct
-        FROM (SELECT id, revenue FROM forecast WHERE level='bu' AND period=37) p1
-        JOIN (SELECT id, revenue FROM forecast WHERE level='bu' AND period=42) p2 ON p1.id = p2.id
+        FROM (SELECT id, revenue FROM hist WHERE level='bu' AND period=37) p1
+        JOIN (SELECT id, revenue FROM hist WHERE level='bu' AND period=42) p2 ON p1.id = p2.id
         ORDER BY growth_pct DESC
     """, conn)
     best_bu_g  = round(bu_df.iloc[0]["growth_pct"], 1)
@@ -339,7 +341,7 @@ def _executive():
     # ── BU in-sample chart ──
     all_bus = list(_BU.keys())
     ds_bu   = fetch_ds(all_bus, level="bu")
-    fig_bu  = make_line_chart("Revenue by BU — P.37–42 (in-sample)",
+    fig_bu  = make_line_chart("Revenue by BU — P.1–42 (historical)",
                                {id_: ds_bu[id_] for id_ in all_bus if id_ in ds_bu})
 
     # ── Tables: forecast P.43-48 + in-sample summary ──
@@ -354,7 +356,7 @@ def _executive():
     df_insample = make_table_df(all_bus, ds_bu, "BU", show_volatility=True)
 
     export_df = pd.read_sql(
-        "SELECT level, id, period, revenue FROM forecast WHERE level='bu' ORDER BY id, period", conn)
+        "SELECT level, id, period, revenue FROM hist WHERE level='bu' ORDER BY id, period", conn)
     return {
         "text":      narrative,
         "cards":     cards,
@@ -536,7 +538,7 @@ def _anomaly(ids, level, ll):
 
     # Highlight anomalous series on a line chart
     affected_ids = list(dict.fromkeys(r[ll] for r in anomaly_rows))[:8]
-    fig = make_line_chart(f"Anomalous {ll}s — revenue P.37–42", {id_: ds[id_] for id_ in affected_ids if id_ in ds})
+    fig = make_line_chart(f"Anomalous {ll}s — revenue P.1–42", {id_: ds[id_] for id_ in affected_ids if id_ in ds})
 
     return {
         "text": f"Found **{len(anomaly_rows)}** anomalous period transitions across **{len(affected_ids)}** {ll}s (IQR method). These are periods where the revenue jump/drop was statistically unusual.",
@@ -548,9 +550,9 @@ def _anomaly(ids, level, ll):
 
 
 def _period_diff(i1, i2):
-    p1, p2 = PERIODS[i1], PERIODS[i2]
-    total_p1 = pd.read_sql("SELECT SUM(revenue) as v FROM forecast WHERE level='bu' AND period=?", conn, params=(p1,)).iloc[0]["v"]
-    total_p2 = pd.read_sql("SELECT SUM(revenue) as v FROM forecast WHERE level='bu' AND period=?", conn, params=(p2,)).iloc[0]["v"]
+    p1, p2 = NLU_PERIODS[i1], NLU_PERIODS[i2]
+    total_p1 = pd.read_sql("SELECT SUM(revenue) as v FROM hist WHERE level='bu' AND period=?", conn, params=(p1,)).iloc[0]["v"]
+    total_p2 = pd.read_sql("SELECT SUM(revenue) as v FROM hist WHERE level='bu' AND period=?", conn, params=(p2,)).iloc[0]["v"]
     total_diff = total_p2 - total_p1
     tg = pct(total_p1, total_p2)
 
@@ -562,8 +564,8 @@ def _period_diff(i1, i2):
 
     diff_df = pd.read_sql("""
         SELECT a.id, a.revenue as r1, b.revenue as r2, (b.revenue - a.revenue) as delta
-        FROM (SELECT id, revenue FROM forecast WHERE level='bu' AND period=?) a
-        JOIN (SELECT id, revenue FROM forecast WHERE level='bu' AND period=?) b ON a.id = b.id
+        FROM (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) a
+        JOIN (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) b ON a.id = b.id
     """, conn, params=(p1, p2))
 
     fig = make_bar_chart(
@@ -585,8 +587,8 @@ def _period_diff(i1, i2):
     df = pd.DataFrame(rows)
     export_df = pd.read_sql("""
         SELECT a.id, a.revenue as p1_rev, b.revenue as p2_rev, (b.revenue - a.revenue) as delta
-        FROM (SELECT id, revenue FROM forecast WHERE level='bu' AND period=?) a
-        JOIN (SELECT id, revenue FROM forecast WHERE level='bu' AND period=?) b ON a.id = b.id
+        FROM (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) a
+        JOIN (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) b ON a.id = b.id
     """, conn, params=(p1, p2))
     export_df.columns = ["BU", f"P.{p1}", f"P.{p2}", "Delta"]
 
@@ -608,8 +610,8 @@ def _compare(ids, level, ll, sort):
         if sort == "worst_growth":
             top_df = pd.read_sql(f"""
                 SELECT p37.id, (p42.revenue - p37.revenue)*100.0 / ABS(p37.revenue) as val
-                FROM (SELECT id, revenue FROM forecast WHERE level=? AND period=37) p37
-                JOIN (SELECT id, revenue FROM forecast WHERE level=? AND period=42) p42 ON p37.id = p42.id
+                FROM (SELECT id, revenue FROM hist WHERE level=? AND period=37) p37
+                JOIN (SELECT id, revenue FROM hist WHERE level=? AND period=42) p42 ON p37.id = p42.id
                 WHERE p37.revenue != 0
                 ORDER BY val ASC LIMIT 2
             """, conn, params=(level, level))
@@ -617,8 +619,8 @@ def _compare(ids, level, ll, sort):
         elif sort == "growth":
             top_df = pd.read_sql(f"""
                 SELECT p37.id, (p42.revenue - p37.revenue)*100.0 / ABS(p37.revenue) as val
-                FROM (SELECT id, revenue FROM forecast WHERE level=? AND period=37) p37
-                JOIN (SELECT id, revenue FROM forecast WHERE level=? AND period=42) p42 ON p37.id = p42.id
+                FROM (SELECT id, revenue FROM hist WHERE level=? AND period=37) p37
+                JOIN (SELECT id, revenue FROM hist WHERE level=? AND period=42) p42 ON p37.id = p42.id
                 WHERE p37.revenue != 0
                 ORDER BY val DESC LIMIT 2
             """, conn, params=(level, level))
@@ -626,13 +628,13 @@ def _compare(ids, level, ll, sort):
         else:
             order = "ASC" if sort == "worst" else "DESC"
             top_df = pd.read_sql(f"""
-                SELECT id FROM forecast WHERE level=? GROUP BY id HAVING sum(revenue)>0
+                SELECT id FROM hist WHERE level=? GROUP BY id HAVING sum(revenue)>0
                 ORDER BY sum(revenue) {order} LIMIT 2
             """, conn, params=(level,))
             ids = top_df["id"].tolist()
 
     if len(ids) < 2:
-        all_df = pd.read_sql("SELECT DISTINCT id FROM forecast WHERE level=? LIMIT 2", conn, params=(level,))
+        all_df = pd.read_sql("SELECT DISTINCT id FROM hist WHERE level=? LIMIT 2", conn, params=(level,))
         ids = all_df["id"].tolist()
 
     ds = fetch_ds(ids)
@@ -664,7 +666,7 @@ def _compare(ids, level, ll, sort):
         })
     df_stats = pd.DataFrame(stat_rows)
 
-    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM forecast WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period_idx", conn, params=tuple(ids))
+    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
     return {"text": f"Comparing {' vs '.join(ids)} ({ll} level) — MinT reconciled:",
             "charts": [fig], "tables": [df_stats, df], "export_df": export_df,
             "followups": [f"Drill down into {ids[0]}", f"Drill down into {ids[1]}", "Show trend analysis"]}
@@ -704,8 +706,8 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         f2, p2 = id_filter_sql()
         top_df = pd.read_sql(f"""
             SELECT p37.id, (p42.revenue - p37.revenue)*100.0 / ABS(p37.revenue) as val
-            FROM (SELECT id, revenue FROM forecast WHERE level=? AND period=37{f1}) p37
-            JOIN (SELECT id, revenue FROM forecast WHERE level=? AND period=42{f2}) p42 ON p37.id = p42.id
+            FROM (SELECT id, revenue FROM hist WHERE level=? AND period=37{f1}) p37
+            JOIN (SELECT id, revenue FROM hist WHERE level=? AND period=42{f2}) p42 ON p37.id = p42.id
             WHERE p37.revenue != 0
             ORDER BY val {order} LIMIT ?
         """, conn, params=[level] + p1 + [level] + p2 + [n])
@@ -716,7 +718,7 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         order = "ASC" if bottom else "DESC"
         f1, p1 = id_filter_sql()
         top_df = pd.read_sql(f"""
-            SELECT id, revenue as val FROM forecast WHERE level=? AND period=?
+            SELECT id, revenue as val FROM hist WHERE level=? AND period=?
             AND revenue > 0{f1}
             ORDER BY val {order} LIMIT ?
         """, conn, params=[level, single_period] + p1 + [n])
@@ -727,7 +729,7 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         order = "ASC" if bottom else "DESC"
         f1, p1 = id_filter_sql()
         top_df = pd.read_sql(f"""
-            SELECT id, AVG(revenue) as val FROM forecast WHERE level=?{f1}
+            SELECT id, AVG(revenue) as val FROM hist WHERE level=?{f1}
             GROUP BY id HAVING val>0 ORDER BY val {order} LIMIT ?
         """, conn, params=[level] + p1 + [n])
         direction = "Bottom" if bottom else "Top"
@@ -747,7 +749,7 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         {id_: ds[id_] for id_ in ids}
     )
     df = make_table_df(ids, ds, ll, single_period=single_period, show_volatility=True)
-    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM forecast WHERE id IN ({','.join('?'*len(ids))})", conn, params=tuple(ids))
+    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
 
     followups = _suggest_followups(level, ids, sort)
     return {"text": f"{direction} {n} {ll}s by {metric_name} — MinT reconciled:",
@@ -767,11 +769,11 @@ def _drilldown(id_: str):
         ds = fetch_ds(seg_ids)
         # Sort by avg revenue desc
         seg_ids_sorted = sorted([s for s in seg_ids if s in ds], key=lambda s: avg(ds[s]), reverse=True)
-        fig = make_line_chart(f"Segments inside {id_up} — revenue P.37–42", {s: ds[s] for s in seg_ids_sorted})
+        fig = make_line_chart(f"Segments inside {id_up} — revenue P.1–42", {s: ds[s] for s in seg_ids_sorted})
         df = make_table_df(seg_ids_sorted, ds, "Segment", show_volatility=True)
         best_seg = seg_ids_sorted[0] if seg_ids_sorted else "?"
         export_df = pd.read_sql(
-            f"SELECT level, id, period, revenue FROM forecast WHERE id IN ({','.join('?'*len(seg_ids))}) ORDER BY id, period_idx",
+            f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(seg_ids))}) ORDER BY id, period",
             conn, params=tuple(seg_ids)
         )
         return {"text": f"Here are all segments inside BU **{id_up}** — MinT reconciled:",
@@ -783,10 +785,10 @@ def _drilldown(id_: str):
         sub_ids = [s for s, sg in SUB_TO_SEG.items() if sg == id_up]
         ds = fetch_ds(sub_ids)
         valid = sorted([s for s in sub_ids if s in ds], key=lambda s: avg(ds[s]), reverse=True)
-        fig = make_line_chart(f"Subsegments inside {id_up} — revenue P.37–42", {s: ds[s] for s in valid})
+        fig = make_line_chart(f"Subsegments inside {id_up} — revenue P.1–42", {s: ds[s] for s in valid})
         df = make_table_df(valid, ds, "Subsegment", show_volatility=True)
         export_df = pd.read_sql(
-            f"SELECT level, id, period, revenue FROM forecast WHERE id IN ({','.join('?'*len(valid))}) ORDER BY id, period_idx",
+            f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(valid))}) ORDER BY id, period",
             conn, params=tuple(valid)
         )
         return {"text": f"Here are all subsegments inside segment **{id_up}** — MinT reconciled:",
@@ -798,7 +800,7 @@ def _drilldown(id_: str):
         ds = fetch_ds([id_up])
         seg = SUB_TO_SEG.get(id_up, "unknown")
         bu = SEG_TO_BU.get(seg, "unknown")
-        v = ds.get(id_up, [0]*6)
+        v = ds.get(id_up, [0]*len(PERIODS))
         fig = make_line_chart(f"Revenue timeline — {id_up}", {id_up: ds[id_up]})
         df = make_table_df([id_up], ds, "Subsegment", show_volatility=True)
         return {"text": f"Revenue for subsegment **{id_up}** (segment {seg} · BU {bu}) — CAGR {'+' if cagr(v)>=0 else ''}{cagr(v)}%, volatility {volatility(v)}% CV:",
@@ -826,23 +828,23 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
     if not ids:
         if single_period is not None:
             top_df = pd.read_sql("""
-                SELECT id FROM forecast WHERE level=? AND period=? AND revenue>0
+                SELECT id FROM hist WHERE level=? AND period=? AND revenue>0
                 ORDER BY revenue DESC LIMIT 8
             """, conn, params=(level, single_period))
         else:
             top_df = pd.read_sql("""
-                SELECT id FROM forecast WHERE level=? GROUP BY id HAVING sum(revenue)>0
+                SELECT id FROM hist WHERE level=? GROUP BY id HAVING sum(revenue)>0
                 ORDER BY sum(revenue) DESC LIMIT 8
             """, conn, params=(level,))
         ids = top_df["id"].tolist()
 
     valid_level_ids = set(pd.read_sql(
-        "SELECT DISTINCT id FROM forecast WHERE level=?", conn, params=(level,)
+        "SELECT DISTINCT id FROM hist WHERE level=?", conn, params=(level,)
     )["id"].tolist())
     ids = [i for i in ids if i in valid_level_ids]
 
     ds = fetch_ds(ids)
-    period_label = f"P.{single_period}" if single_period is not None else "P.37–42"
+    period_label = f"P.{single_period}" if single_period is not None else "P.1–42"
     parent_label = f" · {parent_id}" if parent_id else ""
 
     if single_period is not None:
@@ -856,12 +858,12 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
         )
     else:
         fig = make_line_chart(
-            f"Revenue by {ll}{parent_label} — MinT reconciled · P.37–42",
+            f"Revenue by {ll}{parent_label} — MinT reconciled · P.1–42",
             {id_: ds[id_] for id_ in ids if id_ in ds}
         )
 
     df = make_table_df(ids, ds, ll, single_period=single_period)
-    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM forecast WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period_idx", conn, params=tuple(ids))
+    export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
     followups = _suggest_followups(level, ids)
     return {"text": f"Revenue overview by {ll}{parent_label} — {period_label} · MinT reconciled:",
             "charts": [fig], "tables": [df], "export_df": export_df,
