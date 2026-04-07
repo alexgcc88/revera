@@ -19,7 +19,7 @@ conn = sqlite3.connect(":memory:", check_same_thread=False)
 rows = []
 for lvl, data_dict in [("bu", _BU), ("seg", _SEG), ("sub", _SUB)]:
     for id_, vals in data_dict.items():
-        for i, p in enumerate(PERIODS):
+        for i, p in enumerate(NLU_PERIODS):
             rows.append({"level": lvl, "id": id_, "period": p, "revenue": vals[i], "period_idx": i})
 pd.DataFrame(rows).to_sql("forecast", conn, index=False)
 
