@@ -141,11 +141,11 @@ def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
     ax.grid(axis="y", color="#1e2a3a", linewidth=0.5)
     legend = ax.legend(facecolor=BG2, edgecolor="#1e2a3a", labelcolor=LIGHT_C, fontsize=8)
     ax.set_title("Aggregate Revenue: Historical & Forecast", color=LIGHT_C, fontsize=10, pad=8)
-    return _fig_to_img(fig, 16, 7)
+    return _fig_to_img(fig, 16, 5.5)
 
 def _chart_bu_fc(bu_fc, fc_periods):
     """BU-level forecast line chart."""
-    fig, ax = plt.subplots(figsize=(10.5, 3.2))
+    fig, ax = plt.subplots(figsize=(10.5, 2.8))
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG2)
 
@@ -177,7 +177,7 @@ def _chart_bu_hist(bu_hist, hist_periods):
     ax.grid(axis="y", color="#1e2a3a", linewidth=0.5)
     ax.legend(facecolor=BG2, edgecolor="#1e2a3a", labelcolor=LIGHT_C, fontsize=8)
     ax.set_title("Historical Revenue by Business Unit (P.1–42)", color=LIGHT_C, fontsize=10, pad=8)
-    return _fig_to_img(fig, 16, 6)
+    return _fig_to_img(fig, 16, 4.5)
 
 def _chart_top_segs(seg_fc, fc_periods, top_n=6):
     """Horizontal bar chart of top segments by total forecast."""

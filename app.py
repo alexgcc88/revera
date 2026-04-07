@@ -35,7 +35,9 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; font-size: 15px
 section[data-testid="stSidebar"] { background-color: #10151e; border-right: 1px solid rgba(255,255,255,0.07); }
 section[data-testid="stSidebar"] * { color: #dce8f5 !important; font-size: 13px !important; }
 
-#MainMenu, footer, header { visibility: hidden; }
+#MainMenu, footer, header { display: none; }
+[data-testid="stSidebarCollapsedControl"] { display: flex !important; visibility: visible !important; }
+[data-testid="stLogo"] img { width: 72px !important; height: 72px !important; }
 .block-container { padding: 1rem 1.5rem; max-width: 1000px; }
 
 /* Chat messages */
@@ -136,7 +138,6 @@ def _render_breadcrumb():
 st.logo("revera_icon.png")
 
 with st.sidebar:
-    st.image("revera_icon.png", width=72)
     st.markdown("## ◆ Revera")
     st.caption("Siemens Advanta · Forecast Intelligence")
     st.divider()
