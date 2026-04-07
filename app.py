@@ -147,10 +147,13 @@ with st.sidebar:
     st.divider()
     st.markdown("**Model Performance**")
     st.markdown("""
-    <div class="sb-metric"><span class="sb-key">Method</span><span class="sb-val">MinT shrink</span></div>
-    <div class="sb-metric"><span class="sb-key">R² BU</span><span class="sb-val">0.969</span></div>
-    <div class="sb-metric"><span class="sb-key">R² Segment</span><span class="sb-val">0.986</span></div>
-    <div class="sb-metric"><span class="sb-key">R² Subsegment</span><span class="sb-val">0.972</span></div>
+    <div class="sb-metric"><span class="sb-key">Model</span><span class="sb-val">XGBoost</span></div>
+    <div class="sb-metric"><span class="sb-key">Validation</span><span class="sb-val">Walk-Forward CV</span></div>
+    <div class="sb-metric"><span class="sb-key">Reconciliation</span><span class="sb-val">MinT shrink</span></div>
+    <div class="sb-metric"><span class="sb-key">R²</span><span class="sb-val">0.9866</span></div>
+    <div class="sb-metric"><span class="sb-key">wMAPE</span><span class="sb-val">10.70%</span></div>
+    <div class="sb-metric"><span class="sb-key">RMSE</span><span class="sb-val">7.41M €</span></div>
+    <div class="sb-metric"><span class="sb-key">MAE</span><span class="sb-val">3.63M €</span></div>
     """, unsafe_allow_html=True)
 
     st.divider()
@@ -200,9 +203,10 @@ with st.container():
         <div class="agent-msg">
             <div class="agent-label">Revera</div>
             Hello! I'm <b style="color:#00e5b8">Revera</b>, the Siemens Advanta forecast intelligence agent.
-            I have access to reconciled Revenue data across <b style="color:#00e5b8">4 BUs, 16 segments and 108 subsegments</b>
-            using MinT hierarchical reconciliation (R² > 0.96 at all levels).<br><br>
-            Ask me anything — I can show overviews, rankings, comparisons, trend analysis, anomaly detection, and more.
+            I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 16 segments and 108 subsegments</b> —
+            42 historical periods plus a 6-period XGBoost forecast (P.43–48), reconciled with MinT shrink
+            (R² 0.9866 · wMAPE 10.70% · Walk-Forward CV).<br><br>
+            Ask me anything — I can show overviews, rankings, comparisons, trend analysis, and more.
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -305,7 +309,8 @@ if query:
             if "charts"    in result: msg["charts"]    = result["charts"]
             if "tables"    in result: msg["tables"]    = result["tables"]
             if "cards"     in result: msg["cards"]     = result["cards"]
-            if "export_df" in result: msg["export_df"] = result["export_df"]
+            if "export_df"  in result: msg["export_df"]  = result["export_df"]
+            if "export_pdf" in result: msg["export_pdf"] = result["export_pdf"]
 
             st.session_state.messages.append(msg)
 

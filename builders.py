@@ -7,8 +7,8 @@ from data import (BU as _BU, SEG as _SEG, SUB as _SUB,
                   BU_HIST, BU_FC, SEG_HIST, SEG_FC, SUB_HIST, SUB_FC,
                   PERIODS_HIST, PERIODS_FORECAST)
 
-PERIODS = PERIODS_HIST          # P.1–42 full history (used for charts/tables)
-NLU_PERIODS = list(range(37, 43))  # P.37–42 — maps NLU 0-based period index → period number
+PERIODS = PERIODS_HIST + PERIODS_FORECAST   # P.1–48 full range (charts/tables)
+NLU_PERIODS = list(range(37, 43))           # P.37–42 — maps NLU 0-based index → period number
 
 # --- SQLITE DB INIT ---
 # Table 'forecast'  : in-sample P.37-42 (legacy, used by existing intent builders)
@@ -95,16 +95,17 @@ def get_label(level):
 def fetch_ds(ids, level=None):
     if not ids: return {}
     placeholders = ",".join("?" * len(ids))
-    if level:
-        df = pd.read_sql(
-            f"SELECT id, period, revenue FROM hist WHERE level=? AND id IN ({placeholders})",
-            conn, params=(level, *ids)
-        )
-    else:
-        df = pd.read_sql(
-            f"SELECT id, period, revenue FROM hist WHERE id IN ({placeholders})",
-            conn, params=tuple(ids)
-        )
+    lc = "level=? AND " if level else ""
+    params = (level, *ids) if level else tuple(ids)
+    df_hist = pd.read_sql(
+        f"SELECT id, period, revenue FROM hist WHERE {lc}id IN ({placeholders})",
+        conn, params=params
+    )
+    df_fc = pd.read_sql(
+        f"SELECT id, period, revenue FROM forecast48 WHERE {lc}id IN ({placeholders})",
+        conn, params=params
+    )
+    df = pd.concat([df_hist, df_fc], ignore_index=True)
     ds = {}
     for id_, group in df.groupby("id"):
         v = group.sort_values("period")["revenue"].tolist()
@@ -121,9 +122,15 @@ def make_line_chart(title, series: dict, highlight_period=None):
             marker=dict(size=5), mode="lines+markers",
             customdata=[name]*len(values)
         ))
+    # Forecast boundary line between P.42 and P.43
+    if 43 in PERIODS:
+        boundary_idx = PERIODS.index(42) + 0.5
+        fig.add_vline(x=boundary_idx, line=dict(color="rgba(255,255,255,0.18)", width=1, dash="dash"))
+        fig.add_annotation(x=boundary_idx + 0.6, y=0, yref="paper", text="forecast →",
+                           showarrow=False, font=dict(size=9, color="#6b7e96"), xanchor="left")
     if highlight_period is not None and highlight_period in PERIODS:
         fig.add_vline(
-            x=f"P.{highlight_period}",
+            x=PERIODS.index(highlight_period),
             line=dict(color="rgba(255,181,71,0.4)", width=1, dash="dot")
         )
     fig.update_layout(title=dict(text=title, font=dict(size=12, color="#dce8f5")), **PLOTLY_LAYOUT)
@@ -208,8 +215,6 @@ def build_response(parsed: dict) -> dict:
         return _metrics()
     elif intent == "trend":
         return _trend(ids, level, ll)
-    elif intent == "anomaly":
-        return _anomaly(ids, level, ll)
     elif intent == "period_diff" and periods:
         return _period_diff(periods[0], periods[1])
     elif intent == "drilldown":
@@ -341,7 +346,7 @@ def _executive():
     # ── BU in-sample chart ──
     all_bus = list(_BU.keys())
     ds_bu   = fetch_ds(all_bus, level="bu")
-    fig_bu  = make_line_chart("Revenue by BU — P.1–42 (historical)",
+    fig_bu  = make_line_chart("Revenue by BU — P.1–48 (historical + forecast)",
                                {id_: ds_bu[id_] for id_ in all_bus if id_ in ds_bu})
 
     # ── Tables: forecast P.43-48 + in-sample summary ──
@@ -351,7 +356,7 @@ def _executive():
         g = cagr(v)
         fc_rows.append({"BU": bu,
                          **{f"P.{p}": fmt(v[i]) for i, p in enumerate(PERIODS_FORECAST)},
-                         "CAGR": f"{{'▲' if g>=0 else '▼'}} {abs(g)}%"})
+                         "CAGR": f"{'▲' if g>=0 else '▼'} {abs(g)}%"})
     df_fc_table = pd.DataFrame(fc_rows)
     df_insample = make_table_df(all_bus, ds_bu, "BU", show_volatility=True)
 
@@ -372,22 +377,26 @@ def _executive():
 
 def _metrics():
     fig = make_bar_chart(
-        "R² by hierarchy level — MinT Shrink",
-        ["BU", "Segment", "Subsegment"],
-        [0.969, 0.986, 0.972],
+        "Model Performance — XGBoost + MinT Shrink (Aggregation)",
+        ["R²", "1 − wMAPE"],
+        [0.9866, 1 - 0.1070],
         color_fn=lambda v: "#00e5b8"
     )
-    fig.update_layout(yaxis=dict(range=[0.95, 1.0], tickformat=".3f"))
+    fig.update_layout(yaxis=dict(range=[0.85, 1.0], tickformat=".3f"))
     df = pd.DataFrame([
-        {"Level": "BU",         "R²": 0.969, "wMAPE": "6.7%",  "CAGR (all)": "+13.3%", "Status": "✅ Excellent"},
-        {"Level": "Segment",    "R²": 0.986, "wMAPE": "8.3%",  "CAGR (all)": "varies",  "Status": "✅ Excellent"},
-        {"Level": "Subsegment", "R²": 0.972, "wMAPE": "16.5%", "CAGR (all)": "varies",  "Status": "✅ Very good"},
+        {"Metric": "Model",       "Value": "XGBoost"},
+        {"Metric": "Validation",  "Value": "Walk-Forward CV"},
+        {"Metric": "Reconciliation", "Value": "MinT shrink"},
+        {"Metric": "R²",          "Value": "0.9866"},
+        {"Metric": "wMAPE",       "Value": "10.70%"},
+        {"Metric": "RMSE",        "Value": "7,405,830 €"},
+        {"Metric": "MAE",         "Value": "3,634,910 €"},
     ])
     return {
-        "text": "Model performance — MinT shrink reconciliation. R² > 0.96 at all levels; wMAPE is higher at subsegment due to higher series volatility.",
+        "text": "Model performance — XGBoost with Walk-Forward CV, reconciled with MinT shrink. R² 0.9866 · wMAPE 10.70% at the aggregation level.",
         "charts": [fig],
         "tables": [df],
-        "followups": ["Executive summary", "Which subsegments have highest volatility?"]
+        "followups": ["Executive summary", "Show revenue overview by BU"]
     }
 
 
@@ -476,76 +485,6 @@ def _trend(ids, level, ll):
         "tables": [df],
         "followups": [f"Tell me about {growing[0]}" if growing else "Executive summary",
                       f"Tell me about {declining[0]}" if declining else "Compare all BUs"]
-    }
-
-
-def _anomaly(ids, level, ll):
-    """Detect outlier periods using IQR on period-over-period delta."""
-    from data import SEG_TO_BU as _S2B
-
-    if not ids:
-        level = "bu"
-        ll = "BU"
-        ids = list(_BU.keys())
-
-    # Resolve if parent given
-    resolved = []
-    for id_ in ids:
-        id_up = id_.upper()
-        if id_up in _BU:
-            resolved += [id_up]
-        elif id_up in _SEG:
-            resolved += [id_up]
-        elif id_up in _SUB:
-            resolved += [id_up]
-        elif id_up in _S2B.values():
-            from data import SEG_TO_BU
-            resolved += [s for s, b in SEG_TO_BU.items() if b == id_up]
-        else:
-            resolved.append(id_up)
-    if not resolved:
-        resolved = ids
-
-    ds = fetch_ds(resolved, level=level)
-    valid = [id_ for id_ in resolved if id_ in ds]
-
-    anomaly_rows = []
-    for id_ in valid:
-        v = np.array(ds[id_], dtype=float)
-        deltas = np.diff(v)
-        if len(deltas) < 2: continue
-        q1, q3 = np.percentile(deltas, 25), np.percentile(deltas, 75)
-        iqr = q3 - q1
-        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-        for i, d in enumerate(deltas):
-            if d < lo or d > hi:
-                from_p, to_p = PERIODS[i], PERIODS[i+1]
-                anomaly_rows.append({
-                    ll: id_,
-                    "Period": f"P.{from_p}→P.{to_p}",
-                    "Δ Revenue": f"{'+' if d >= 0 else ''}{fmt_s(d)}",
-                    "Type": "↑ Spike" if d > hi else "↓ Drop",
-                    "Magnitude": fmt(abs(d)),
-                })
-
-    if not anomaly_rows:
-        return {
-            "text": f"No significant anomalies detected across the {len(valid)} {ll}s analysed. All period-over-period changes fall within normal IQR bounds.",
-            "followups": ["Show trend analysis", "Executive summary"]
-        }
-
-    df_anom = pd.DataFrame(anomaly_rows)
-
-    # Highlight anomalous series on a line chart
-    affected_ids = list(dict.fromkeys(r[ll] for r in anomaly_rows))[:8]
-    fig = make_line_chart(f"Anomalous {ll}s — revenue P.1–42", {id_: ds[id_] for id_ in affected_ids if id_ in ds})
-
-    return {
-        "text": f"Found **{len(anomaly_rows)}** anomalous period transitions across **{len(affected_ids)}** {ll}s (IQR method). These are periods where the revenue jump/drop was statistically unusual.",
-        "charts": [fig],
-        "tables": [df_anom],
-        "followups": [f"Tell me about {affected_ids[0]}" if affected_ids else "Executive summary",
-                      "Show trend analysis"]
     }
 
 
@@ -709,8 +648,12 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
             FROM (SELECT id, revenue FROM hist WHERE level=? AND period=37{f1}) p37
             JOIN (SELECT id, revenue FROM hist WHERE level=? AND period=42{f2}) p42 ON p37.id = p42.id
             WHERE p37.revenue != 0
+            AND p37.id IN (
+                SELECT id FROM hist WHERE level=?
+                GROUP BY id HAVING SUM(CASE WHEN revenue > 0 THEN 1 ELSE 0 END) >= 30
+            )
             ORDER BY val {order} LIMIT ?
-        """, conn, params=[level] + p1 + [level] + p2 + [n])
+        """, conn, params=[level] + p1 + [level] + p2 + [level] + [n])
         direction = "Lowest" if bottom else "Highest"
         metric_name = f"growth %{parent_label}"
     elif single_period is not None:
@@ -844,7 +787,7 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
     ids = [i for i in ids if i in valid_level_ids]
 
     ds = fetch_ds(ids)
-    period_label = f"P.{single_period}" if single_period is not None else "P.1–42"
+    period_label = f"P.{single_period}" if single_period is not None else "P.1–48"
     parent_label = f" · {parent_id}" if parent_id else ""
 
     if single_period is not None:
@@ -858,13 +801,13 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
         )
     else:
         fig = make_line_chart(
-            f"Revenue by {ll}{parent_label} — MinT reconciled · P.1–42",
+            f"Revenue by {ll}{parent_label} — MinT reconciled · P.1–48",
             {id_: ds[id_] for id_ in ids if id_ in ds}
         )
 
     df = make_table_df(ids, ds, ll, single_period=single_period)
     export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
     followups = _suggest_followups(level, ids)
-    return {"text": f"Revenue overview by {ll}{parent_label} — {period_label} · MinT reconciled:",
+    return {"text": f"Revenue overview — {ll}{parent_label} · {period_label} · MinT reconciled:",
             "charts": [fig], "tables": [df], "export_df": export_df,
             "followups": followups}

@@ -12,7 +12,7 @@ Available periods: 37, 38, 39, 40, 41, 42 ONLY (index 0 to 5).
 
 Return ONLY valid JSON, no explanation, no markdown fences. Schema:
 {
-  "intent": one of ["executive", "metrics", "period_diff", "compare", "ranking", "overview", "drilldown", "trend", "anomaly", "error"],
+  "intent": one of ["executive", "metrics", "period_diff", "compare", "ranking", "overview", "drilldown", "trend", "error"],
   "level": one of ["bu", "seg", "sub"],
   "ids": array of explicit IDs mentioned (empty array if none),
   "n": integer number of items for ranking (default 5),
@@ -35,8 +35,6 @@ SINGLE PERIOD: If the user asks about one specific period (e.g. "all BU in perio
 DRILLDOWN: If the user asks to know more about a specific BU, segment or subsegment ID (e.g. "tell me more about SSI037", "what's inside SSI027", "drill down into SSI04781", "what about SSI0478150"), return intent=drilldown with the id in ids[]. Do NOT return intent=metrics for these questions.
 
 TREND: If the user asks about direction, trajectory, whether something is growing/declining, trend lines, or momentum → intent=trend. Examples: "is SSI037 growing?", "show me the trend for segments", "which BUs are declining?", "what's the trajectory of SSI04781?", "show trend analysis".
-
-ANOMALY: If the user asks about unusual changes, spikes, drops, outliers, strange behaviour, or anything unexpected in the data → intent=anomaly. Examples: "are there any anomalies?", "any unusual drops?", "what's strange in the data?", "show outliers", "any spikes?".
 
 OTHER RULES:
 - "best X by revenue" / "highest revenue" / "most revenue" → intent=ranking, sort=revenue
