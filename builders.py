@@ -672,11 +672,11 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         order = "ASC" if bottom else "DESC"
         f1, p1 = id_filter_sql()
         top_df = pd.read_sql(f"""
-            SELECT id, AVG(revenue) as val FROM hist WHERE level=?{f1}
+            SELECT id, SUM(revenue) as val FROM hist WHERE level=?{f1}
             GROUP BY id HAVING val>0 ORDER BY val {order} LIMIT ?
         """, conn, params=[level] + p1 + [n])
         direction = "Bottom" if bottom else "Top"
-        metric_name = f"average revenue{parent_label}"
+        metric_name = f"revenue{parent_label}"
 
     ids = top_df["id"].tolist()
     values = top_df["val"].tolist()
@@ -721,7 +721,7 @@ def _drilldown(id_: str):
         )
         return {"text": f"Here are all segments inside BU **{id_up}** — MinT reconciled:",
                 "charts": [fig], "tables": [df], "export_df": export_df,
-                "followups": [f"Show subsegments of {best_seg}", f"Which segments in {id_up} have highest growth?", "Show anomalies in this BU"]}
+                "followups": [f"Show subsegments of {best_seg}", f"Which segments in {id_up} have highest growth?", f"Show trend for {id_up}"]}
 
     if id_up in _SEG:
         from data import SUB_TO_SEG
@@ -736,7 +736,7 @@ def _drilldown(id_: str):
         )
         return {"text": f"Here are all subsegments inside segment **{id_up}** — MinT reconciled:",
                 "charts": [fig], "tables": [df], "export_df": export_df,
-                "followups": [f"Which subsegments in {id_up} have highest growth?", f"Show trend for {id_up} subsegments", f"Show anomalies in {id_up}"]}
+                "followups": [f"Which subsegments in {id_up} have highest growth?", f"Show trend for {id_up} subsegments", f"Compare top subsegments in {id_up}"]}
 
     if id_up in _SUB:
         from data import SUB_TO_SEG, SEG_TO_BU

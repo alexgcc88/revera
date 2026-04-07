@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import json
 import pandas as pd
@@ -7,6 +8,13 @@ from data import BU, SEG, SUB, SUB_TO_SEG, SEG_TO_BU, PERIODS
 from nlu import parse_intent
 from builders import build_response
 from pdf_export import generate_pdf
+
+def _md(text):
+    """Convert markdown bold/italic to HTML for use inside raw HTML divs."""
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    text = text.replace('\n', '<br>')
+    return text
 
 # ── PAGE CONFIG ────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -128,6 +136,7 @@ def _render_breadcrumb():
 st.logo("revera_icon.png")
 
 with st.sidebar:
+    st.image("revera_icon.png", width=72)
     st.markdown("## ◆ Revera")
     st.caption("Siemens Advanta · Forecast Intelligence")
     st.divider()
@@ -214,7 +223,7 @@ with st.container():
             if msg["role"] == "user":
                 st.markdown(f'<div class="user-label">You</div><div class="user-msg">{msg["content"]}</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="agent-label">Revera</div><div class="agent-msg">{msg["text"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="agent-label">Revera</div><div class="agent-msg">{_md(msg["text"])}</div>', unsafe_allow_html=True)
                 if "charts" in msg:
                     for j, chart in enumerate(msg["charts"]):
                         event = st.plotly_chart(chart, use_container_width=True, config={"displayModeBar": False}, key=f"chart_{i}_{j}", on_select="rerun")

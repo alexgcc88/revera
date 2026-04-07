@@ -162,6 +162,23 @@ def _chart_bu_fc(bu_fc, fc_periods):
     ax.set_title("Revenue Forecast by Business Unit (P.43–48)", color=LIGHT_C, fontsize=10, pad=8)
     return _fig_to_img(fig, 16, 6)
 
+def _chart_bu_hist(bu_hist, hist_periods):
+    """BU-level historical revenue line chart."""
+    fig, ax = plt.subplots(figsize=(10.5, 3.2))
+    fig.patch.set_facecolor(BG)
+    ax.set_facecolor(BG2)
+    for i, (bu, vals) in enumerate(sorted(bu_hist.items())):
+        ax.plot(hist_periods, vals, marker="o", markersize=3,
+                color=CHART_COLORS[i % len(CHART_COLORS)], linewidth=1.8, label=bu)
+    ax.yaxis.set_major_formatter(FuncFormatter(_mfmt))
+    ax.set_xlabel("Period", color=SLATE_C, fontsize=9)
+    ax.tick_params(colors=SLATE_C, labelsize=8)
+    for spine in ax.spines.values(): spine.set_edgecolor("#1e2a3a")
+    ax.grid(axis="y", color="#1e2a3a", linewidth=0.5)
+    ax.legend(facecolor=BG2, edgecolor="#1e2a3a", labelcolor=LIGHT_C, fontsize=8)
+    ax.set_title("Historical Revenue by Business Unit (P.1–42)", color=LIGHT_C, fontsize=10, pad=8)
+    return _fig_to_img(fig, 16, 6)
+
 def _chart_top_segs(seg_fc, fc_periods, top_n=6):
     """Horizontal bar chart of top segments by total forecast."""
     top = sorted(seg_fc, key=lambda s: sum(seg_fc[s]), reverse=True)[:top_n]
@@ -274,6 +291,10 @@ def generate_pdf():
     # ── PAGE BREAK ─────────────────────────────────────────────────────────
     story.append(PageBreak())
 
+    # ── BU HISTORICAL CHART (page 2) ───────────────────────────────────────
+    story.append(Paragraph("Historical Revenue by Business Unit (P.1–42)", S["section"]))
+    story.append(_chart_bu_hist(BU_HIST, PERIODS_HIST))
+
     # ── BU FORECAST TABLE ──────────────────────────────────────────────────
     story.append(Paragraph("Forecast by Business Unit (P.43–48)", S["section"]))
     hdr = ["BU"] + [f"P.{p}" for p in PERIODS_FORECAST] + ["CAGR", "Total P.43-48"]
@@ -327,18 +348,21 @@ def generate_pdf():
     # ── MODEL PERFORMANCE ──────────────────────────────────────────────────
     story.append(Paragraph("Model Performance", S["section"]))
     story.append(Paragraph(
-        "Recursive multi-step XGBoost with 106 features (lagged revenue/orders, macro indicators, "
-        "hierarchical aggregates). MinT shrinkage reconciliation enforces top-down consistency "
-        "across all three hierarchy levels.", S["body"]))
+        "XGBoost model with Walk-Forward Cross-Validation. "
+        "MinT shrink reconciliation applied at aggregation level for hierarchical consistency.", S["body"]))
     pdata = [
-        ["Level",      "R<super>2</super>", "wMAPE",  "Reconciliation", "Status"],
-        ["BU",         "0.969", "6.7%",  "MinT shrink", "Excellent"],
-        ["Segment",    "0.986", "8.3%",  "MinT shrink", "Excellent"],
-        ["Subsegment", "0.972", "16.5%", "MinT shrink", "Very Good"],
+        ["Metric",        "Value",        "Notes"],
+        ["Model",         "XGBoost",      "Walk-Forward CV"],
+        ["Reconciliation","MinT shrink",  "Aggregation level"],
+        ["R²",            "0.9866",       "Excellent fit"],
+        ["wMAPE",         "10.70%",       "Aggregation level"],
+        ["RMSE",          "7,405,830 €",  "Aggregation level"],
+        ["MAE",           "3,634,910 €",  "Aggregation level"],
     ]
-    pt  = Table(pdata, colWidths=[3*cm, 2*cm, 2*cm, 3.5*cm, 2.5*cm])
+    pt  = Table(pdata, colWidths=[4*cm, 4*cm, 5*cm])
     pts = _table_style()
-    for i in range(1, 4): pts.add("TEXTCOLOR", (4,i), (4,i), TEAL)
+    pts.add("TEXTCOLOR", (1,1), (1,1), TEAL)   # XGBoost value teal
+    pts.add("TEXTCOLOR", (1,3), (1,3), TEAL)   # R² value teal
     pt.setStyle(pts)
     story.append(pt)
 
