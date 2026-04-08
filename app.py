@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from PIL import Image as _PILImage
 from data import BU, SEG, SUB, SUB_TO_SEG, SEG_TO_BU, PERIODS
 from nlu import parse_intent
-from builders import build_response
+from builders import build_response, make_excel_bytes
 from pdf_export import generate_pdf
 
 def _md(text):
@@ -101,7 +101,7 @@ def _update_breadcrumb(parsed: dict):
     level  = parsed.get("level", "bu")
     ids    = parsed.get("ids", [])
 
-    if intent in ("error", "metrics", "executive"):
+    if intent in ("error", "metrics", "executive", "forecast", "heatmap"):
         return  # don't change breadcrumb for meta queries
 
     if intent == "drilldown" and ids:
@@ -173,6 +173,22 @@ with st.sidebar:
         st.session_state.last_followups = []
         st.rerun()
 
+    if st.button("Export all data (Excel)", use_container_width=True):
+        with st.spinner("Building Excel…"):
+            excel_bytes = make_excel_bytes()
+            st.session_state["sidebar_excel"] = excel_bytes
+            st.rerun()
+
+    if st.session_state.get("sidebar_excel"):
+        st.download_button(
+            "⬇ Download Excel",
+            st.session_state["sidebar_excel"],
+            "revera_full_data.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="sidebar_excel_dl",
+            use_container_width=True,
+        )
+
 # ── HEADER ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
@@ -189,7 +205,7 @@ st.markdown("""
 _render_breadcrumb()
 
 # ── QUICK CHIPS ────────────────────────────────────────────────────────────
-cols = st.columns(6)
+cols = st.columns(7)
 chips = [
     ("Revenue by BU",           "Show revenue overview by BU"),
     ("Top 5 subsegments",        "What are the top 5 subsegments by revenue?"),
@@ -197,6 +213,7 @@ chips = [
     ("Compare top 2 segments",   "Compare the top 2 segments by revenue"),
     ("Trend analysis",           "Show trend analysis for all BUs"),
     ("Executive summary",        "Executive summary"),
+    ("What changed most?",       "What changed most between P.41 and P.42?"),
 ]
 for i, (label, query) in enumerate(chips):
     with cols[i]:

@@ -8,7 +8,7 @@ from data import (BU as _BU, SEG as _SEG, SUB as _SUB,
                   PERIODS_HIST, PERIODS_FORECAST)
 
 PERIODS = PERIODS_HIST + PERIODS_FORECAST   # P.1–48 full range (charts/tables)
-NLU_PERIODS = list(range(37, 43))           # P.37–42 — maps NLU 0-based index → period number
+NLU_PERIODS = list(range(37, 49))           # P.37–48 — maps NLU 0-based index → period number
 
 # --- SQLITE DB INIT ---
 # Table 'forecast'  : in-sample P.37-42 (legacy, used by existing intent builders)
@@ -16,10 +16,11 @@ NLU_PERIODS = list(range(37, 43))           # P.37–42 — maps NLU 0-based ind
 # Table 'forecast48': predictions P.43-48
 conn = sqlite3.connect(":memory:", check_same_thread=False)
 
+_LEGACY_PERIODS = list(range(37, 43))   # P.37–42 — the 6 in-sample periods backing the legacy 'forecast' table
 rows = []
 for lvl, data_dict in [("bu", _BU), ("seg", _SEG), ("sub", _SUB)]:
     for id_, vals in data_dict.items():
-        for i, p in enumerate(NLU_PERIODS):
+        for i, p in enumerate(_LEGACY_PERIODS):
             rows.append({"level": lvl, "id": id_, "period": p, "revenue": vals[i], "period_idx": i})
 pd.DataFrame(rows).to_sql("forecast", conn, index=False)
 
@@ -36,6 +37,14 @@ for lvl, data_dict in [("bu", BU_FC), ("seg", SEG_FC), ("sub", SUB_FC)]:
         for i, p in enumerate(PERIODS_FORECAST):
             fc_rows.append({"level": lvl, "id": id_, "period": p, "revenue": vals[i]})
 pd.DataFrame(fc_rows).to_sql("forecast48", conn, index=False)
+
+# Combined view spanning all periods P.1–48
+conn.execute("""
+    CREATE VIEW all_revenue AS
+    SELECT level, id, period, revenue FROM hist
+    UNION ALL
+    SELECT level, id, period, revenue FROM forecast48
+""")
 # ----------------------
 
 COLORS = ["#00e5b8", "#3d9eff", "#ffb547", "#ff6060", "#b47fff", "#ff9fcc", "#7fffd4", "#ffd700"]
@@ -197,12 +206,14 @@ def _suggest_followups(level, ids, sort=None):
 
 # ── RESPONSE BUILDERS ──────────────────────────────────────────────────────
 def build_response(parsed: dict) -> dict:
-    intent = parsed.get("intent", "overview")
-    level  = parsed.get("level", "bu")
-    ids    = parsed.get("ids", [])
-    n      = parsed.get("n", 5)
-    sort   = parsed.get("sort", "revenue")
-    periods = parsed.get("periods")
+    intent    = parsed.get("intent", "overview")
+    level     = parsed.get("level", "bu")
+    ids       = parsed.get("ids", [])
+    n         = parsed.get("n", 5)
+    sort      = parsed.get("sort", "revenue")
+    periods   = parsed.get("periods")
+    threshold    = parsed.get("threshold")
+    threshold_op = parsed.get("threshold_op")
     error_msg = parsed.get("error_msg", "")
 
     ll = get_label(level)
@@ -215,12 +226,15 @@ def build_response(parsed: dict) -> dict:
         return _metrics()
     elif intent == "trend":
         return _trend(ids, level, ll)
+    elif intent == "forecast":
+        return _forecast(ids, level, ll)
+    elif intent == "heatmap":
+        return _heatmap(level, ll)
     elif intent == "period_diff" and periods:
         return _period_diff(periods[0], periods[1])
     elif intent == "drilldown":
         return _drilldown(ids[0] if ids else None)
     elif intent == "compare":
-        # "compare all BUs/segments" → overview is more useful than a 2-way compare
         if len(ids) > 2 or (not ids and n and n > 2):
             return _overview(level, ll, ids)
         return _compare(ids, level, ll, sort)
@@ -236,7 +250,8 @@ def build_response(parsed: dict) -> dict:
                 parent_id = candidate
             elif level == "sub" and (candidate in _S2B.values() or candidate in _S2B):
                 parent_id = candidate
-        return _ranking(level, ll, n, sort, single_period=single_period, parent_id=parent_id)
+        return _ranking(level, ll, n, sort, single_period=single_period, parent_id=parent_id,
+                        threshold=threshold, threshold_op=threshold_op)
     else:
         single_period = None
         if periods and len(periods) == 1:
@@ -490,8 +505,9 @@ def _trend(ids, level, ll):
 
 def _period_diff(i1, i2):
     p1, p2 = NLU_PERIODS[i1], NLU_PERIODS[i2]
-    total_p1 = pd.read_sql("SELECT SUM(revenue) as v FROM hist WHERE level='bu' AND period=?", conn, params=(p1,)).iloc[0]["v"]
-    total_p2 = pd.read_sql("SELECT SUM(revenue) as v FROM hist WHERE level='bu' AND period=?", conn, params=(p2,)).iloc[0]["v"]
+    # Use all_revenue view so both historical and forecast periods work
+    total_p1 = pd.read_sql("SELECT SUM(revenue) as v FROM all_revenue WHERE level='bu' AND period=?", conn, params=(p1,)).iloc[0]["v"]
+    total_p2 = pd.read_sql("SELECT SUM(revenue) as v FROM all_revenue WHERE level='bu' AND period=?", conn, params=(p2,)).iloc[0]["v"]
     total_diff = total_p2 - total_p1
     tg = pct(total_p1, total_p2)
 
@@ -503,8 +519,8 @@ def _period_diff(i1, i2):
 
     diff_df = pd.read_sql("""
         SELECT a.id, a.revenue as r1, b.revenue as r2, (b.revenue - a.revenue) as delta
-        FROM (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) a
-        JOIN (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) b ON a.id = b.id
+        FROM (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) a
+        JOIN (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) b ON a.id = b.id
     """, conn, params=(p1, p2))
 
     fig = make_bar_chart(
@@ -526,8 +542,8 @@ def _period_diff(i1, i2):
     df = pd.DataFrame(rows)
     export_df = pd.read_sql("""
         SELECT a.id, a.revenue as p1_rev, b.revenue as p2_rev, (b.revenue - a.revenue) as delta
-        FROM (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) a
-        JOIN (SELECT id, revenue FROM hist WHERE level='bu' AND period=?) b ON a.id = b.id
+        FROM (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) a
+        JOIN (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) b ON a.id = b.id
     """, conn, params=(p1, p2))
     export_df.columns = ["BU", f"P.{p1}", f"P.{p2}", "Delta"]
 
@@ -611,7 +627,7 @@ def _compare(ids, level, ll, sort):
             "followups": [f"Drill down into {ids[0]}", f"Drill down into {ids[1]}", "Show trend analysis"]}
 
 
-def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
+def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None, threshold=None, threshold_op=None):
     from data import SUB_TO_SEG as _S2S, SEG_TO_BU as _S2B
 
     candidate_ids = None
@@ -661,7 +677,7 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
         order = "ASC" if bottom else "DESC"
         f1, p1 = id_filter_sql()
         top_df = pd.read_sql(f"""
-            SELECT id, revenue as val FROM hist WHERE level=? AND period=?
+            SELECT id, revenue as val FROM all_revenue WHERE level=? AND period=?
             AND revenue > 0{f1}
             ORDER BY val {order} LIMIT ?
         """, conn, params=[level, single_period] + p1 + [n])
@@ -680,6 +696,20 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None):
 
     ids = top_df["id"].tolist()
     values = top_df["val"].tolist()
+
+    # Apply threshold filter on average period revenue
+    if threshold is not None and threshold_op and ids:
+        _op_map = {"gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
+        _op = _op_map.get(threshold_op, ">")
+        _avg_df = pd.read_sql(
+            f"SELECT id, AVG(revenue) as avg_rev FROM all_revenue WHERE level=? AND id IN ({','.join('?'*len(ids))}) GROUP BY id HAVING avg_rev {_op} ?",
+            conn, params=[level] + ids + [threshold]
+        )
+        _keep = set(_avg_df["id"].tolist())
+        ids    = [i for i in ids    if i in _keep]
+        values = [v for i, v in zip(top_df["id"].tolist(), values) if i in _keep]
+        if not ids:
+            return {"text": f"⚠️ No {ll}s found matching your revenue filter ({threshold_op} {fmt(threshold)})."}
 
     fig_bar = make_bar_chart(
         f"{direction} {n} {ll}s by {metric_name}",
@@ -771,7 +801,7 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
     if not ids:
         if single_period is not None:
             top_df = pd.read_sql("""
-                SELECT id FROM hist WHERE level=? AND period=? AND revenue>0
+                SELECT id FROM all_revenue WHERE level=? AND period=? AND revenue>0
                 ORDER BY revenue DESC LIMIT 8
             """, conn, params=(level, single_period))
         else:
@@ -811,3 +841,213 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
     return {"text": f"Revenue overview — {ll}{parent_label} · {period_label} · MinT reconciled:",
             "charts": [fig], "tables": [df], "export_df": export_df,
             "followups": followups}
+
+
+def _forecast(ids, level, ll):
+    """Dedicated P.43–48 forecast view."""
+    from data import SEG_TO_BU as _S2B, SUB_TO_SEG as _S2S
+
+    fc_data = {"bu": BU_FC, "seg": SEG_FC, "sub": SUB_FC}[level]
+
+    # Resolve parent filtering (e.g. "forecast for segments in SSI037")
+    target_ids = None
+    parent_label = ""
+    if ids:
+        id_up = ids[0].upper()
+        if level == "seg" and id_up in _S2B.values():
+            target_ids = [s for s, b in _S2B.items() if b == id_up]
+            parent_label = f" in BU {id_up}"
+        elif level == "sub" and id_up in _S2B.values():
+            segs = [s for s, b in _S2B.items() if b == id_up]
+            target_ids = [sub for sub, seg in _S2S.items() if seg in segs]
+            parent_label = f" in BU {id_up}"
+        elif level == "sub" and id_up in _S2B:
+            target_ids = [sub for sub, seg in _S2S.items() if seg == id_up]
+            parent_label = f" in {id_up}"
+        elif id_up in fc_data:
+            target_ids = [id_up]
+        else:
+            target_ids = [id_up]
+
+    if target_ids is None:
+        target_ids = list(fc_data.keys())
+
+    valid_ids = [id_ for id_ in target_ids if id_ in fc_data]
+    if not valid_ids:
+        return {"text": f"⚠️ No forecast data found for the requested {ll}s."}
+
+    # Chart: P.43–48 lines
+    fig = go.Figure()
+    period_labels = [f"P.{p}" for p in PERIODS_FORECAST]
+    for i, id_ in enumerate(valid_ids[:8]):
+        v = fc_data[id_]
+        fig.add_trace(go.Scatter(
+            x=period_labels, y=v, name=id_,
+            line=dict(color=COLORS[i % len(COLORS)], width=2),
+            marker=dict(size=6), mode="lines+markers",
+            customdata=[id_] * len(PERIODS_FORECAST)
+        ))
+    fig.update_layout(
+        title=dict(text=f"XGBoost Forecast P.43–48 — {ll}s{parent_label}", font=dict(size=12, color="#dce8f5")),
+        **PLOTLY_LAYOUT
+    )
+
+    # Table
+    rows = []
+    for id_ in valid_ids:
+        v = fc_data[id_]
+        g = cagr(v)
+        row = {ll: id_}
+        for i, p in enumerate(PERIODS_FORECAST):
+            row[f"P.{p}"] = fmt(v[i])
+        row["CAGR P.43–48"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
+        rows.append(row)
+    df = pd.DataFrame(rows)
+
+    export_df = pd.read_sql(
+        f"SELECT level, id, period, revenue FROM forecast48 WHERE level=? AND id IN ({','.join('?'*len(valid_ids))}) ORDER BY id, period",
+        conn, params=[level] + valid_ids
+    )
+
+    top_id = valid_ids[0] if valid_ids else None
+    fu = []
+    if top_id:
+        fu.append(f"Drill down into {top_id}")
+    fu += ["Show historical trend", "Executive summary"]
+    return {
+        "text": f"XGBoost + MinT forecast P.43–48 · {len(valid_ids)} {ll}s{parent_label}:",
+        "charts": [fig],
+        "tables": [df],
+        "export_df": export_df,
+        "followups": fu,
+    }
+
+
+def _heatmap(level, ll):
+    """Growth heatmap — CAGR colour grid for all entities at a given level (historical P.1–42)."""
+    from data import SEG_TO_BU as _S2B
+
+    if level == "bu":
+        ids = list(BU_HIST.keys())
+        data_dict = BU_HIST
+        z = [[cagr(data_dict[id_]) for id_ in ids]]
+        text = [[f"{id_}<br>{cagr(data_dict[id_]):+.1f}%" for id_ in ids]]
+        y_labels = ["BU"]
+        x_labels = ids
+
+    elif level == "seg":
+        # One row per BU, segments as columns (grouped)
+        bus = sorted(set(_S2B.values()))
+        bu_segs = {bu: sorted([s for s, b in _S2B.items() if b == bu]) for bu in bus}
+        max_cols = max(len(v) for v in bu_segs.values())
+        z, text = [], []
+        for bu in bus:
+            segs = bu_segs[bu]
+            row_z, row_t = [], []
+            for i in range(max_cols):
+                if i < len(segs):
+                    v = SEG_HIST.get(segs[i], [0])
+                    c = cagr(v)
+                    row_z.append(c)
+                    row_t.append(f"{segs[i]}<br>{c:+.1f}%")
+                else:
+                    row_z.append(None)
+                    row_t.append("")
+            z.append(row_z)
+            text.append(row_t)
+        y_labels = bus
+        x_labels = [f"Seg {i+1}" for i in range(max_cols)]
+        data_dict = SEG_HIST
+        ids = list(SEG_HIST.keys())
+
+    else:  # sub — top 60 by average revenue for readability
+        ids_all = sorted(
+            [id_ for id_ in SUB_HIST],
+            key=lambda x: avg(SUB_HIST[x]),
+            reverse=True
+        )[:60]
+        data_dict = {id_: SUB_HIST[id_] for id_ in ids_all}
+        ids = ids_all
+        ncols = 6
+        nrows = (len(ids) + ncols - 1) // ncols
+        z, text = [], []
+        for row in range(nrows):
+            row_z, row_t = [], []
+            for col in range(ncols):
+                idx = row * ncols + col
+                if idx < len(ids):
+                    v = data_dict[ids[idx]]
+                    c = cagr(v)
+                    row_z.append(c)
+                    row_t.append(f"{ids[idx]}<br>{c:+.1f}%")
+                else:
+                    row_z.append(None)
+                    row_t.append("")
+            z.append(row_z)
+            text.append(row_t)
+        y_labels = [f"Row {i+1}" for i in range(nrows)]
+        x_labels = [f"Col {i+1}" for i in range(ncols)]
+
+    fig = go.Figure(go.Heatmap(
+        z=z,
+        text=text,
+        texttemplate="%{text}",
+        textfont=dict(size=9, color="#dce8f5"),
+        colorscale=[[0, "#ff4444"], [0.45, "#2a3f52"], [0.55, "#2a3f52"], [1, "#00e5b8"]],
+        zmid=0,
+        showscale=True,
+        colorbar=dict(title=dict(text="CAGR %", font=dict(color="#6b7e96")), tickfont=dict(size=10, color="#6b7e96")),
+        xgap=2, ygap=2,
+        y=y_labels,
+        x=x_labels,
+    ))
+    height = max(280, 80 * len(z))
+    layout = {**PLOTLY_LAYOUT, "height": height}
+    fig.update_layout(
+        title=dict(text=f"Growth Heatmap — {ll}s by CAGR (P.1–42)", font=dict(size=12, color="#dce8f5")),
+        **layout
+    )
+
+    # Summary table sorted by CAGR desc
+    rows = sorted(
+        [{"ID": id_, "CAGR": f"{cagr(data_dict[id_]):+.1f}%", "Avg/period": fmt(avg(data_dict[id_]))}
+         for id_ in ids if id_ in data_dict],
+        key=lambda r: float(r["CAGR"].rstrip("%")),
+        reverse=True
+    )
+    df = pd.DataFrame(rows)
+
+    growing  = sum(1 for id_ in ids if id_ in data_dict and cagr(data_dict[id_]) > 0)
+    declining = len([id_ for id_ in ids if id_ in data_dict]) - growing
+
+    return {
+        "text": f"Growth heatmap across {len(ids)} {ll}s — **{growing}** growing (green), **{declining}** declining (red).",
+        "charts": [fig],
+        "tables": [df],
+        "followups": [f"Top 5 {ll}s by growth", "Show trend analysis", "Executive summary"],
+    }
+
+
+def make_excel_bytes():
+    """Generate multi-sheet Excel: BU / Segment / Subsegment (historical + forecast)."""
+    import io
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        for sheet_name, hist_d, fc_d in [
+            ("BU",         BU_HIST,  BU_FC),
+            ("Segment",    SEG_HIST, SEG_FC),
+            ("Subsegment", SUB_HIST, SUB_FC),
+        ]:
+            rows = []
+            for id_ in sorted(hist_d.keys()):
+                row = {"ID": id_}
+                for i, p in enumerate(PERIODS_HIST):
+                    row[f"P.{p}"] = round(hist_d[id_][i], 2)
+                for i, p in enumerate(PERIODS_FORECAST):
+                    row[f"P.{p} (FC)"] = round(fc_d.get(id_, [0] * 6)[i], 2)
+                row["Hist CAGR"] = f"{cagr(hist_d[id_]):+.1f}%"
+                row["FC CAGR"]   = f"{cagr(fc_d.get(id_, [1, 1])):+.1f}%"
+                rows.append(row)
+            pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
+    buf.seek(0)
+    return buf.read()

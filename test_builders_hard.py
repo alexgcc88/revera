@@ -185,9 +185,9 @@ run("ranking n=100 BUs (only 4 exist) — no crash, max 4 rows",
     {"intent": "ranking", "level": "bu", "n": 100, "sort": "revenue", "ids": []},
     has_table, no_crash, table_max_rows(4))
 
-run("ranking n=50 segments (now 18 exist) — no crash, max 18 rows",
+run("ranking n=50 segments (now 24 exist) — no crash, max 24 rows",
     {"intent": "ranking", "level": "seg", "n": 50, "sort": "revenue", "ids": []},
-    has_table, no_crash, table_max_rows(18))
+    has_table, no_crash, table_max_rows(24))
 
 run("ranking n=999 subsegments — no crash",
     {"intent": "ranking", "level": "sub", "n": 999, "sort": "revenue", "ids": []},
