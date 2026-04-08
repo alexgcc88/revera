@@ -64,11 +64,31 @@ def avg(v): return sum(v) / len(v)
 def pct(a, b): return round((b - a) / abs(a) * 100, 1) if a != 0 else 0
 
 def cagr(v):
-    """CAGR over the period series. n-1 steps between n periods."""
+    """True annualised CAGR — periods are months.
+    Formula: (last/first)^(12/months) - 1
+    Guards:
+      - Uses first/last strictly positive values
+      - Requires ≥ 6 months between anchors
+      - Base must be ≥ 0.5% of peak (filters near-zero starts)
+      - Last positive value must be within the last 12 months (filters inactive segments)
+    """
     n = len(v)
-    if n < 2 or v[0] <= 0 or v[-1] <= 0:
-        return pct(v[0], v[-1])
-    return round(((v[-1] / v[0]) ** (1 / (n - 1)) - 1) * 100, 1)
+    if n < 2:
+        return 0.0
+    peak = max(v)
+    min_base = peak * 0.005
+    first_i = next((i for i, x in enumerate(v) if x >= min_base and x > 0), None)
+    last_i  = next((i for i, x in enumerate(reversed(v)) if x > 0), None)
+    if first_i is None or last_i is None:
+        return 0.0
+    last_i = n - 1 - last_i
+    if last_i < n - 12:              # segment inactive in last 12 months — skip
+        return 0.0
+    months = last_i - first_i
+    if months < 6:
+        return 0.0
+    v0, vn = v[first_i], v[last_i]
+    return round(((vn / v0) ** (12 / months) - 1) * 100, 1)
 
 def volatility(v):
     """Coefficient of variation as % — std/mean."""
