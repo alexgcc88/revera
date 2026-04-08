@@ -340,7 +340,7 @@ def _executive():
     x_fc = [PERIODS_HIST[-1]] + PERIODS_FORECAST
     y_fc = [hist_agg[-1]] + fc_agg
     fig_hist_fc.add_trace(go.Scatter(
-        x=x_fc, y=y_fc, name="XGBoost Forecast (P.43–48)",
+        x=x_fc, y=y_fc, name="FlowState-r1.1 Forecast (P.43–48)",
         fill="tozeroy", line=dict(color="#ff6b35", width=2),
         fillcolor="rgba(255,107,53,0.35)",
         mode="lines+markers", marker=dict(size=6, color="#ff6b35"),
@@ -392,23 +392,23 @@ def _executive():
 
 def _metrics():
     fig = make_bar_chart(
-        "Model Performance — XGBoost + MinT Shrink (Aggregation)",
+        "Model Performance — FlowState-r1.1 + Bottom-Up Aggregation",
         ["R²", "1 − wMAPE"],
-        [0.9866, 1 - 0.1070],
+        [0.9871, 1 - 0.1070],
         color_fn=lambda v: "#00e5b8"
     )
     fig.update_layout(yaxis=dict(range=[0.85, 1.0], tickformat=".3f"))
     df = pd.DataFrame([
-        {"Metric": "Model",       "Value": "XGBoost"},
+        {"Metric": "Model",       "Value": "FlowState-r1.1"},
         {"Metric": "Validation",  "Value": "Walk-Forward CV"},
-        {"Metric": "Reconciliation", "Value": "MinT shrink"},
-        {"Metric": "R²",          "Value": "0.9866"},
-        {"Metric": "wMAPE",       "Value": "10.70%"},
-        {"Metric": "RMSE",        "Value": "7,405,830 €"},
-        {"Metric": "MAE",         "Value": "3,634,910 €"},
+        {"Metric": "Reconciliation", "Value": "Bottom-Up"},
+        {"Metric": "R²",          "Value": "0.9871"},
+        {"Metric": "wMAPE",       "Value": "9.40%"},
+        {"Metric": "RMSE",        "Value": "7,743,554 €"},
+        {"Metric": "MAE",         "Value": "3,663,463 €"},
     ])
     return {
-        "text": "Model performance — XGBoost with Walk-Forward CV, reconciled with MinT shrink. R² 0.9866 · wMAPE 10.70% at the aggregation level.",
+        "text": "Model performance — FlowState-r1.1 with Walk-Forward CV, Bottom-Up aggregated. R² 0.9871 · wMAPE 9.40% at the subsegment level.",
         "charts": [fig],
         "tables": [df],
         "followups": ["Executive summary", "Show revenue overview by BU"]
@@ -622,7 +622,7 @@ def _compare(ids, level, ll, sort):
     df_stats = pd.DataFrame(stat_rows)
 
     export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
-    return {"text": f"Comparing {' vs '.join(ids)} ({ll} level) — MinT reconciled:",
+    return {"text": f"Comparing {' vs '.join(ids)} ({ll} level) — Bottom-Up aggregated:",
             "charts": [fig], "tables": [df_stats, df], "export_df": export_df,
             "followups": [f"Drill down into {ids[0]}", f"Drill down into {ids[1]}", "Show trend analysis"]}
 
@@ -725,7 +725,7 @@ def _ranking(level, ll, n, sort="revenue", single_period=None, parent_id=None, t
     export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
 
     followups = _suggest_followups(level, ids, sort)
-    return {"text": f"{direction} {n} {ll}s by {metric_name} — MinT reconciled:",
+    return {"text": f"{direction} {n} {ll}s by {metric_name} — Bottom-Up aggregated:",
             "charts": [fig_bar, fig_line], "tables": [df], "export_df": export_df,
             "followups": followups}
 
@@ -749,7 +749,7 @@ def _drilldown(id_: str):
             f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(seg_ids))}) ORDER BY id, period",
             conn, params=tuple(seg_ids)
         )
-        return {"text": f"Here are all segments inside BU **{id_up}** — MinT reconciled:",
+        return {"text": f"Here are all segments inside BU **{id_up}** — Bottom-Up aggregated:",
                 "charts": [fig], "tables": [df], "export_df": export_df,
                 "followups": [f"Show subsegments of {best_seg}", f"Which segments in {id_up} have highest growth?", f"Show trend for {id_up}"]}
 
@@ -764,7 +764,7 @@ def _drilldown(id_: str):
             f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(valid))}) ORDER BY id, period",
             conn, params=tuple(valid)
         )
-        return {"text": f"Here are all subsegments inside segment **{id_up}** — MinT reconciled:",
+        return {"text": f"Here are all subsegments inside segment **{id_up}** — Bottom-Up aggregated:",
                 "charts": [fig], "tables": [df], "export_df": export_df,
                 "followups": [f"Which subsegments in {id_up} have highest growth?", f"Show trend for {id_up} subsegments", f"Compare top subsegments in {id_up}"]}
 
@@ -825,20 +825,20 @@ def _overview(level, ll, ids=None, single_period=None, parent_id=None):
         bar_ids  = [id_ for id_ in ids if id_ in ds]
         bar_vals = [ds[id_][period_idx] for id_ in bar_ids]
         fig = make_bar_chart(
-            f"Revenue by {ll}{parent_label} — {period_label} · MinT reconciled",
+            f"Revenue by {ll}{parent_label} — {period_label} · Bottom-Up aggregated",
             bar_ids, bar_vals,
             color_fn=lambda v: "#00e5b8"
         )
     else:
         fig = make_line_chart(
-            f"Revenue by {ll}{parent_label} — MinT reconciled · P.1–48",
+            f"Revenue by {ll}{parent_label} — Bottom-Up aggregated · P.1–48",
             {id_: ds[id_] for id_ in ids if id_ in ds}
         )
 
     df = make_table_df(ids, ds, ll, single_period=single_period)
     export_df = pd.read_sql(f"SELECT level, id, period, revenue FROM hist WHERE id IN ({','.join('?'*len(ids))}) ORDER BY id, period", conn, params=tuple(ids))
     followups = _suggest_followups(level, ids)
-    return {"text": f"Revenue overview — {ll}{parent_label} · {period_label} · MinT reconciled:",
+    return {"text": f"Revenue overview — {ll}{parent_label} · {period_label} · Bottom-Up aggregated:",
             "charts": [fig], "tables": [df], "export_df": export_df,
             "followups": followups}
 
@@ -888,7 +888,7 @@ def _forecast(ids, level, ll):
             customdata=[id_] * len(PERIODS_FORECAST)
         ))
     fig.update_layout(
-        title=dict(text=f"XGBoost Forecast P.43–48 — {ll}s{parent_label}", font=dict(size=12, color="#dce8f5")),
+        title=dict(text=f"FlowState-r1.1 Forecast P.43–48 — {ll}s{parent_label}", font=dict(size=12, color="#dce8f5")),
         **PLOTLY_LAYOUT
     )
 
@@ -915,7 +915,7 @@ def _forecast(ids, level, ll):
         fu.append(f"Drill down into {top_id}")
     fu += ["Show historical trend", "Executive summary"]
     return {
-        "text": f"XGBoost + MinT forecast P.43–48 · {len(valid_ids)} {ll}s{parent_label}:",
+        "text": f"FlowState-r1.1 forecast P.43–48 · {len(valid_ids)} {ll}s{parent_label}:",
         "charts": [fig],
         "tables": [df],
         "export_df": export_df,
