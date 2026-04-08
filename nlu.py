@@ -112,14 +112,24 @@ def parse_intent(question: str, api_key: str, history_json: str = "[]") -> dict:
             
     messages.append({"role": "user", "content": question})
     
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        temperature=0,
-        max_tokens=300,
-        response_format={"type": "json_object"}
-    )
-    
+    def _call(model):
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0,
+            max_tokens=300,
+            response_format={"type": "json_object"}
+        )
+
+    # Try the large model first; fall back to the fast 8B model on rate-limit
+    try:
+        response = _call("llama-3.3-70b-versatile")
+    except Exception as e:
+        if "rate_limit_exceeded" in str(e) or "429" in str(e):
+            response = _call("llama-3.1-8b-instant")
+        else:
+            raise
+
     raw = response.choices[0].message.content.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
     return json.loads(raw)

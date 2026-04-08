@@ -317,11 +317,13 @@ if query:
     with st.spinner("Thinking..."):
         try:
             history_subset = []
-            for m in st.session_state.messages[-8:]:
+            # Keep last 6 turns; truncate assistant text to 150 chars to save tokens
+            for m in st.session_state.messages[-6:]:
                 if m["role"] == "user":
                     history_subset.append({"role": "user", "content": m.get("content", "")})
                 else:
-                    history_subset.append({"role": "assistant", "content": m.get("text", "")})
+                    text = (m.get("text") or "")[:150]
+                    history_subset.append({"role": "assistant", "content": text})
             history_json = json.dumps(history_subset)
             parsed = parse_intent(query, api_key, history_json)
             _update_breadcrumb(parsed)
@@ -342,10 +344,26 @@ if query:
             st.session_state.messages.append(msg)
 
         except Exception as e:
-            import traceback
-            st.session_state.messages.append({
-                "role": "assistant",
-                "text": f"⚠️ Error: {str(e)}\n```\n{traceback.format_exc()}\n```"
-            })
+            import re as _re
+            err_str = str(e)
+            # Friendly rate-limit message instead of raw stack trace
+            if "rate_limit_exceeded" in err_str or "429" in err_str:
+                wait_match = _re.search(r"try again in ([\w.]+)", err_str)
+                wait = wait_match.group(1) if wait_match else "a few minutes"
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "text": (
+                        f"⚠️ **Groq daily token limit reached** (free tier: 100k tokens/day). "
+                        f"Please try again in **{wait}**.\n\n"
+                        "While you wait, you can still use the **Export CSV/PDF/Excel** buttons "
+                        "on previous responses, or browse the charts already loaded."
+                    )
+                })
+            else:
+                import traceback
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "text": f"⚠️ Error: {err_str}\n```\n{traceback.format_exc()}\n```"
+                })
 
     st.rerun()
