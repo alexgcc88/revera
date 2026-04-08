@@ -187,14 +187,13 @@ with st.sidebar:
 
 # ── HEADER ─────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-  <div style="background:linear-gradient(135deg,#00e5b8,#3d9eff);width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">◆</div>
-  <div>
-    <div style="font-size:18px;font-weight:600;color:#dce8f5">Forecast Intelligence</div>
-    <div style="font-family:'DM Mono',monospace;font-size:10px;color:#6b7e96;display:flex;align-items:center;gap:8px;">
-      SIEMENS ADVANTA · MINT HIERARCHICAL RECONCILIATION
-      <span style="background:rgba(0,229,184,0.09);color:#00e5b8;padding:2px 8px;border-radius:20px;border:1px solid rgba(0,229,184,0.2);white-space:nowrap">● model active</span>
-    </div>
+<div style="margin-bottom:8px;">
+  <div style="font-size:18px;font-weight:600;color:#dce8f5;">
+    <span style="color:#00e5b8">◆</span> Forecast Intelligence
+  </div>
+  <div style="font-family:'DM Mono',monospace;font-size:10px;color:#6b7e96;display:flex;align-items:center;gap:8px;">
+    SIEMENS ADVANTA · MINT HIERARCHICAL RECONCILIATION
+    <span style="background:rgba(0,229,184,0.09);color:#00e5b8;padding:2px 8px;border-radius:20px;border:1px solid rgba(0,229,184,0.2);">● model active</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
