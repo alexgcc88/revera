@@ -161,8 +161,7 @@ with st.sidebar:
     st.markdown("**Model Performance**")
     st.markdown("""
     <div class="sb-metric"><span class="sb-key">Model</span><span class="sb-val">FlowState-r1.1</span></div>
-    <div class="sb-metric"><span class="sb-key">Validation</span><span class="sb-val">Walk-Forward CV</span></div>
-    <div class="sb-metric"><span class="sb-key">Reconciliation</span><span class="sb-val">Bottom-Up</span></div>
+        <div class="sb-metric"><span class="sb-key">Reconciliation</span><span class="sb-val">Bottom-Up</span></div>
     <div class="sb-metric"><span class="sb-key">R²</span><span class="sb-val">0.9871</span></div>
     <div class="sb-metric"><span class="sb-key">wMAPE</span><span class="sb-val">9.40%</span></div>
     <div class="sb-metric"><span class="sb-key">RMSE</span><span class="sb-val">7.74M €</span></div>
@@ -236,7 +235,7 @@ with st.container():
             Hello! I'm <b style="color:#00e5b8">Revera</b>, the Siemens Advanta forecast intelligence agent.
             I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 24 segments and 134 subsegments</b> —
             42 historical periods plus a 6-period FlowState-r1.1 forecast (P.43–48), Bottom-Up aggregated
-            (R² 0.9871 · wMAPE 9.40% · Walk-Forward CV).<br><br>
+            (R² 0.9871 · wMAPE 9.40%).<br><br>
             Ask me anything — I can show overviews, rankings, comparisons, trend analysis, and more.
         </div>
         """, unsafe_allow_html=True)
