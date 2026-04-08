@@ -11,6 +11,12 @@ The data has three hierarchy levels:
 Available periods: 37 through 48 (index 0=P.37, 1=P.38, ..., 5=P.42, 6=P.43, 7=P.44, 8=P.45, 9=P.46, 10=P.47, 11=P.48).
 P.37–42 are historical data. P.43–48 are FlowState-r1.1 forecast data.
 
+CALENDAR MONTH MAPPING — users may refer to periods by calendar month/year instead of P.XX numbers. Map them as follows:
+Apr/24=P.37(idx 0), May/24=P.38(idx 1), Jun/24=P.39(idx 2), Jul/24=P.40(idx 3),
+Aug/24=P.41(idx 4), Sep/24=P.42(idx 5), Oct/24=P.43(idx 6), Nov/24=P.44(idx 7),
+Dec/24=P.45(idx 8), Jan/25=P.46(idx 9), Feb/25=P.47(idx 10), Mar/25=P.48(idx 11).
+Examples: "what changed between Aug/24 and Sep/24?" → period_diff, periods=[4,5]; "show revenue in Oct/24" → single period, periods=[6].
+
 Return ONLY valid JSON, no explanation, no markdown fences. Schema:
 {
   "intent": one of ["executive", "metrics", "period_diff", "compare", "ranking", "overview", "drilldown", "trend", "forecast", "heatmap", "error"],
@@ -31,7 +37,7 @@ LEVEL CONTEXT: If the user uses pronouns or vague references ("the lowest one", 
 
 OUT-OF-DOMAIN: If the question has nothing to do with Revenue forecasts, business units, segments, periods, or model performance (e.g. weather, sports, general knowledge, coding), return intent=error with error_msg="I can only answer questions about Siemens Advanta Revenue forecasts. Try asking about BUs, segments, periods or model performance."
 
-INVALID PERIOD: If the user mentions a period number that is NOT in [37,38,39,40,41,42,43,44,45,46,47,48], return intent=error with error_msg="Period X is not available. Available periods are 37–42 (historical) and 43–48 (forecast)."
+INVALID PERIOD: If the user mentions a period number or calendar month that does NOT map to any period in [37–48], return intent=error with error_msg="That period is not available. Historical data covers Apr/24–Sep/24 and forecast covers Oct/24–Mar/25."
 
 SINGLE PERIOD: If the user asks about one specific period (e.g. "all BU in period 37", "segments in P.45", "revenue for period 43"), set periods=[idx] (single-element array) where idx is the 0-based index of that period. Do NOT set intent=period_diff for single-period queries.
 
