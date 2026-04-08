@@ -161,7 +161,8 @@ with st.sidebar:
     <div class="sb-metric"><span class="sb-key">BU</span><span class="sb-val">4 units</span></div>
     <div class="sb-metric"><span class="sb-key">Segments</span><span class="sb-val">24</span></div>
     <div class="sb-metric"><span class="sb-key">Subsegments</span><span class="sb-val">134</span></div>
-    <div class="sb-metric"><span class="sb-key">Periods</span><span class="sb-val">1–42 + forecast 43–48</span></div>
+    <div class="sb-metric"><span class="sb-key">History</span><span class="sb-val">Apr/21–Sep/24</span></div>
+    <div class="sb-metric"><span class="sb-key">Forecast</span><span class="sb-val">Oct/24–Mar/25</span></div>
     """, unsafe_allow_html=True)
 
     st.divider()
