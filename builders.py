@@ -1023,7 +1023,7 @@ def _heatmap(level, ll):
         "text": f"Growth heatmap across {len(ids)} {ll}s — **{growing}** growing (green), **{declining}** declining (red).",
         "charts": [fig],
         "tables": [df],
-        "followups": [f"Top 5 {ll}s by growth", "Show trend analysis", "Executive summary"],
+        "followups": [f"Top {min(5, len(ids))} {ll}s by growth", "Show trend analysis", "Executive summary"],
     }
 
 
