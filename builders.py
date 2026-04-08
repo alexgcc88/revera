@@ -400,15 +400,14 @@ def _metrics():
     fig.update_layout(yaxis=dict(range=[0.85, 1.0], tickformat=".3f"))
     df = pd.DataFrame([
         {"Metric": "Model",       "Value": "FlowState-r1.1"},
-        {"Metric": "Validation",  "Value": "Walk-Forward CV"},
-        {"Metric": "Reconciliation", "Value": "Bottom-Up"},
+                {"Metric": "Reconciliation", "Value": "Bottom-Up"},
         {"Metric": "R²",          "Value": "0.9871"},
         {"Metric": "wMAPE",       "Value": "9.40%"},
         {"Metric": "RMSE",        "Value": "7,743,554 €"},
         {"Metric": "MAE",         "Value": "3,663,463 €"},
     ])
     return {
-        "text": "Model performance — FlowState-r1.1 with Walk-Forward CV, Bottom-Up aggregated. R² 0.9871 · wMAPE 9.40% at the subsegment level.",
+        "text": "Model performance — FlowState-r1.1, Bottom-Up aggregated. R² 0.9871 · wMAPE 9.40% at the subsegment level.",
         "charts": [fig],
         "tables": [df],
         "followups": ["Executive summary", "Show revenue overview by BU"]

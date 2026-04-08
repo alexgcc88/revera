@@ -347,11 +347,11 @@ def generate_pdf():
     # ── MODEL PERFORMANCE ──────────────────────────────────────────────────
     story.append(Paragraph("Model Performance", S["section"]))
     story.append(Paragraph(
-        "FlowState-r1.1 (Google) with Walk-Forward Cross-Validation. "
+        "FlowState-r1.1 (Google). "
         "Bottom-up aggregation: subsegment → segment → BU.", S["body"]))
     pdata = [
         ["Metric",        "Value",        "Notes"],
-        ["Model",         "FlowState-r1.1",      "Walk-Forward CV"],
+        ["Model",         "FlowState-r1.1",      ""],
         ["Reconciliation","Bottom-Up",  "Subsegment level"],
         ["R²",            "0.9871",       "Excellent fit"],
         ["wMAPE",         "9.40%",       "Subsegment level"],
