@@ -68,9 +68,20 @@ def _fmt(v):
     return f"EUR{v:.0f}"
 
 def _cagr(v):
-    v = [x for x in v if x != 0]
-    if len(v) < 2 or v[0] <= 0 or v[-1] <= 0: return 0.0
-    return round(((v[-1]/v[0])**(1/(len(v)-1))-1)*100, 1)
+    """True annualised CAGR — periods are months.
+    Guards: ≥ 6 months; base ≥ 0.5% of peak; last value within last 12 months."""
+    n = len(v)
+    if n < 2: return 0.0
+    peak = max(v)
+    min_base = peak * 0.005
+    first_i = next((i for i, x in enumerate(v) if x >= min_base and x > 0), None)
+    last_i  = next((i for i, x in enumerate(reversed(v)) if x > 0), None)
+    if first_i is None or last_i is None: return 0.0
+    last_i = n - 1 - last_i
+    if last_i < n - 12: return 0.0
+    months = last_i - first_i
+    if months < 6: return 0.0
+    return round(((v[last_i]/v[first_i])**(12/months)-1)*100, 1)
 
 def _mfmt(x, pos):
     a = abs(x)
@@ -272,7 +283,7 @@ def generate_pdf():
     story.append(Paragraph(
         f"Siemens Advanta is forecast to reach <b>{_fmt(total_p48)}</b> in aggregate revenue by Period 48, "
         f"a <b>+{fc_growth}%</b> increase over the forecast horizon (P.43–P.48). "
-        f"Historically, aggregate revenue grew at a CAGR of <b>{h_cagr}%</b> across 42 periods. "
+        f"Historically, aggregate revenue grew at an annualised CAGR of <b>{h_cagr}%</b> across 42 monthly periods (3.5 years). "
         f"<b>{best_bu}</b> leads the forecast with the highest total projected volume. "
         f"The top three segments by forecast volume are: {top3_str}.",
         S["body"]))
