@@ -5,7 +5,11 @@ import plotly.graph_objects as go
 import plotly.express as px
 from data import (BU as _BU, SEG as _SEG, SUB as _SUB,
                   BU_HIST, BU_FC, SEG_HIST, SEG_FC, SUB_HIST, SUB_FC,
-                  PERIODS_HIST, PERIODS_FORECAST)
+                  PERIODS_HIST, PERIODS_FORECAST, PERIOD_LABELS)
+
+def plabel(p):
+    """Return calendar label for period number, e.g. 42 → 'Sep/24'."""
+    return PERIOD_LABELS.get(p, f"P.{p}")
 
 PERIODS = PERIODS_HIST + PERIODS_FORECAST   # P.1–48 full range (charts/tables)
 NLU_PERIODS = list(range(37, 49))           # P.37–48 — maps NLU 0-based index → period number
@@ -143,15 +147,15 @@ def fetch_ds(ids, level=None):
 
 def make_line_chart(title, series: dict, highlight_period=None):
     fig = go.Figure()
-    period_labels = [f"P.{p}" for p in PERIODS]
+    x_labels = [plabel(p) for p in PERIODS]
     for i, (name, values) in enumerate(series.items()):
         fig.add_trace(go.Scatter(
-            x=period_labels, y=values, name=name,
+            x=x_labels, y=values, name=name,
             line=dict(color=COLORS[i % len(COLORS)], width=2),
             marker=dict(size=5), mode="lines+markers",
             customdata=[name]*len(values)
         ))
-    # Forecast boundary line between P.42 and P.43
+    # Forecast boundary between Sep/24 (P.42) and Oct/24 (P.43)
     if 43 in PERIODS:
         boundary_idx = PERIODS.index(42) + 0.5
         fig.add_vline(x=boundary_idx, line=dict(color="rgba(255,255,255,0.18)", width=1, dash="dash"))
@@ -162,7 +166,9 @@ def make_line_chart(title, series: dict, highlight_period=None):
             x=PERIODS.index(highlight_period),
             line=dict(color="rgba(255,181,71,0.4)", width=1, dash="dot")
         )
-    fig.update_layout(title=dict(text=title, font=dict(size=12, color="#dce8f5")), **PLOTLY_LAYOUT)
+    layout = {**PLOTLY_LAYOUT,
+              "xaxis": {**PLOTLY_LAYOUT["xaxis"], "tickangle": -45, "nticks": 12}}
+    fig.update_layout(title=dict(text=title, font=dict(size=12, color="#dce8f5")), **layout)
     return fig
 
 def make_bar_chart(title, x_labels, values, color_fn=None):
@@ -190,13 +196,13 @@ def make_table_df(ids, data, level_label, single_period=None, show_volatility=Fa
         row = {level_label: id_}
         if single_period is not None:
             period_idx = PERIODS.index(single_period)
-            row[f"P.{single_period}"] = fmt(v[period_idx])
+            row[plabel(single_period)] = fmt(v[period_idx])
             row["CAGR"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
         else:
-            row[f"P.{PERIODS[0]}"] = fmt(v[0])
-            row[f"P.{PERIODS[-1]}"] = fmt(v[-1])
+            row[plabel(PERIODS[0])]  = fmt(v[0])
+            row[plabel(PERIODS[-1])] = fmt(v[-1])
             row["CAGR"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
-            row["Peak"] = f"P.{peak_period}"
+            row["Peak"] = plabel(peak_period)
         row["Avg/period"] = fmt(avg(v))
         if show_volatility:
             row["Volatility"] = f"{volatility(v)}%"
@@ -345,7 +351,7 @@ def _executive():
         f"Siemens Advanta is forecast to reach **{fmt(total_fc_p48)}** by P.48, "
         f"a **+{fc_growth}%** increase over the forecast horizon (P.43–P.48). "
         f"Historically, aggregate revenue grew at **{hist_cagr_val}% CAGR** across 42 periods "
-        f"(volatility: {hist_vol}% CV), peaking at **P.{peak_period}**. "
+        f"(volatility: {hist_vol}% CV), peaking at **{plabel(peak_period)}**. "
         f"In-sample: **{bu_df.iloc[0]['id']}** led at +{best_bu_g}%, **{bu_df.iloc[-1]['id']}** trailed at {worst_bu_g}%. "
         f"Most volatile segment: **{most_volatile_seg}** (CV {most_volatile_val}%)."
     )
@@ -353,28 +359,28 @@ def _executive():
     # ── Historical + Forecast chart (blue/orange) ──
     fig_hist_fc = go.Figure()
     fig_hist_fc.add_trace(go.Scatter(
-        x=PERIODS_HIST, y=hist_agg, name="Historical Revenue (P.1–42)",
+        x=[plabel(p) for p in PERIODS_HIST], y=hist_agg, name="Historical Revenue (Apr/21–Sep/24)",
         fill="tozeroy", line=dict(color="#3d9eff", width=1.5),
         fillcolor="rgba(61,158,255,0.3)"
     ))
-    x_fc = [PERIODS_HIST[-1]] + PERIODS_FORECAST
+    x_fc = [plabel(p) for p in [PERIODS_HIST[-1]] + PERIODS_FORECAST]
     y_fc = [hist_agg[-1]] + fc_agg
     fig_hist_fc.add_trace(go.Scatter(
-        x=x_fc, y=y_fc, name="FlowState-r1.1 Forecast (P.43–48)",
+        x=x_fc, y=y_fc, name="FlowState-r1.1 Forecast (Oct/24–Mar/25)",
         fill="tozeroy", line=dict(color="#ff6b35", width=2),
         fillcolor="rgba(255,107,53,0.35)",
         mode="lines+markers", marker=dict(size=6, color="#ff6b35"),
         text=[""] + [f"{v/1e6:.0f}M" for v in fc_agg],
         textposition="top center", textfont=dict(size=9, color="#ff6b35")
     ))
-    fig_hist_fc.add_vline(x=42.5, line=dict(color="rgba(255,255,255,0.25)", width=1, dash="dash"))
-    fig_hist_fc.add_annotation(x=43.5, y=max(fc_agg)*0.88, text="forecast →",
+    fig_hist_fc.add_annotation(x=plabel(45), y=max(fc_agg)*0.88, text="← forecast",
+                                xref="x", yref="y",
                                 showarrow=False, font=dict(size=9, color="#6b7e96"))
     layout_fc = {**PLOTLY_LAYOUT, "height": 300,
-                 "xaxis": dict(title="Period", gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.06)"),
+                 "xaxis": dict(title="", tickangle=-45, nticks=12, gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.06)"),
                  "yaxis": dict(gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.06)", tickformat=".2s")}
     fig_hist_fc.update_layout(
-        title=dict(text="Aggregate Revenue — Historical (P.1–42) & Forecast (P.43–48)", font=dict(size=12, color="#dce8f5")),
+        title=dict(text="Aggregate Revenue — Historical (Apr/21–Sep/24) & Forecast (Oct/24–Mar/25)", font=dict(size=12, color="#dce8f5")),
         **layout_fc
     )
 
@@ -390,7 +396,7 @@ def _executive():
         v = BU_FC[bu]
         g = cagr(v)
         fc_rows.append({"BU": bu,
-                         **{f"P.{p}": fmt(v[i]) for i, p in enumerate(PERIODS_FORECAST)},
+                         **{plabel(p): fmt(v[i]) for i, p in enumerate(PERIODS_FORECAST)},
                          "CAGR": f"{'▲' if g>=0 else '▼'} {abs(g)}%"})
     df_fc_table = pd.DataFrame(fc_rows)
     df_insample = make_table_df(all_bus, ds_bu, "BU", show_volatility=True)
@@ -483,7 +489,7 @@ def _trend(ids, level, ll):
 
     # Trend chart: actual + linear fit per series
     fig = go.Figure()
-    period_labels = [f"P.{p}" for p in PERIODS]
+    period_labels = [plabel(p) for p in PERIODS]
     x = np.arange(len(PERIODS), dtype=float)
     for i, id_ in enumerate(valid[:8]):
         v = ds[id_]
@@ -531,8 +537,8 @@ def _period_diff(i1, i2):
     tg = pct(total_p1, total_p2)
 
     cards = [
-        (f"P.{p1} Total", fmt_s(total_p1), "all BUs"),
-        (f"P.{p2} Total", fmt_s(total_p2), "all BUs"),
+        (f"{plabel(p1)}", fmt_s(total_p1), "all BUs"),
+        (f"{plabel(p2)}", fmt_s(total_p2), "all BUs"),
         ("Delta", f"{'+' if total_diff >= 0 else ''}{fmt_s(total_diff)}", f"{'+' if tg >= 0 else ''}{tg}%"),
     ]
 
@@ -543,7 +549,7 @@ def _period_diff(i1, i2):
     """, conn, params=(p1, p2))
 
     fig = make_bar_chart(
-        f"Revenue delta by BU: P.{p2} − P.{p1}",
+        f"Revenue delta by BU: {plabel(p2)} − {plabel(p1)}",
         diff_df["id"].tolist(), diff_df["delta"].tolist(),
         color_fn=lambda v: "#00e5b8" if v >= 0 else "#ff6060"
     )
@@ -553,8 +559,8 @@ def _period_diff(i1, i2):
         g = pct(r["r1"], r["r2"])
         rows.append({
             "BU": r["id"],
-            f"P.{p1}": fmt(r["r1"]),
-            f"P.{p2}": fmt(r["r2"]),
+            plabel(p1): fmt(r["r1"]),
+            plabel(p2): fmt(r["r2"]),
             "Δ Abs": f"{'+' if r['delta'] >= 0 else ''}{fmt_s(r['delta'])}",
             "Δ %": f"{'▲' if g >= 0 else '▼'} {abs(g)}%",
         })
@@ -564,19 +570,19 @@ def _period_diff(i1, i2):
         FROM (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) a
         JOIN (SELECT id, revenue FROM all_revenue WHERE level='bu' AND period=?) b ON a.id = b.id
     """, conn, params=(p1, p2))
-    export_df.columns = ["BU", f"P.{p1}", f"P.{p2}", "Delta"]
+    export_df.columns = ["BU", plabel(p1), plabel(p2), "Delta"]
 
     all_bus = list(_BU.keys())
     ds_bu = fetch_ds(all_bus)
     fig_line = make_line_chart(
-        f"Revenue timeline · P.{p1} and P.{p2} highlighted",
+        f"Revenue timeline · {plabel(p1)} and {plabel(p2)} highlighted",
         {id_: ds_bu[id_] for id_ in all_bus if id_ in ds_bu},
         highlight_period=p2
     )
 
-    return {"text": f"Revenue change between Period {p1} and Period {p2}:",
+    return {"text": f"Revenue change between {plabel(p1)} and {plabel(p2)}:",
             "cards": cards, "charts": [fig, fig_line], "tables": [df], "export_df": export_df,
-            "followups": ["Show trend analysis", f"Which segments drove the change in P.{p2}?"]}
+            "followups": ["Show trend analysis", f"Which segments drove the change in {plabel(p2)}?"]}
 
 
 def _compare(ids, level, ll, sort):
@@ -618,7 +624,7 @@ def _compare(ids, level, ll, sort):
 
     rows = []
     for i, p in enumerate(PERIODS):
-        row = {"Period": f"P.{p}"}
+        row = {"Period": plabel(p)}
         for id_ in ids:
             row[id_] = fmt(ds[id_][i])
         if len(ids) == 2:
@@ -635,7 +641,7 @@ def _compare(ids, level, ll, sort):
             ll: id_,
             "CAGR": f"{'+' if cagr(v) >= 0 else ''}{cagr(v)}%",
             "Volatility": f"{volatility(v)}%",
-            "Peak": f"P.{PERIODS[int(np.argmax(v))]}",
+            "Peak": plabel(PERIODS[int(np.argmax(v))]),
             "Avg/period": fmt(avg(v)),
         })
     df_stats = pd.DataFrame(stat_rows)
@@ -897,7 +903,7 @@ def _forecast(ids, level, ll):
 
     # Chart: P.43–48 lines
     fig = go.Figure()
-    period_labels = [f"P.{p}" for p in PERIODS_FORECAST]
+    period_labels = [plabel(p) for p in PERIODS_FORECAST]
     for i, id_ in enumerate(valid_ids[:8]):
         v = fc_data[id_]
         fig.add_trace(go.Scatter(
@@ -907,7 +913,7 @@ def _forecast(ids, level, ll):
             customdata=[id_] * len(PERIODS_FORECAST)
         ))
     fig.update_layout(
-        title=dict(text=f"FlowState-r1.1 Forecast P.43–48 — {ll}s{parent_label}", font=dict(size=12, color="#dce8f5")),
+        title=dict(text=f"FlowState-r1.1 Forecast Oct/24–Mar/25 — {ll}s{parent_label}", font=dict(size=12, color="#dce8f5")),
         **PLOTLY_LAYOUT
     )
 
@@ -918,8 +924,8 @@ def _forecast(ids, level, ll):
         g = cagr(v)
         row = {ll: id_}
         for i, p in enumerate(PERIODS_FORECAST):
-            row[f"P.{p}"] = fmt(v[i])
-        row["CAGR P.43–48"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
+            row[plabel(p)] = fmt(v[i])
+        row["CAGR Oct/24–Mar/25"] = f"{'▲' if g >= 0 else '▼'} {abs(g)}%"
         rows.append(row)
     df = pd.DataFrame(rows)
 
@@ -934,7 +940,7 @@ def _forecast(ids, level, ll):
         fu.append(f"Drill down into {top_id}")
     fu += ["Show historical trend", "Executive summary"]
     return {
-        "text": f"FlowState-r1.1 forecast P.43–48 · {len(valid_ids)} {ll}s{parent_label}:",
+        "text": f"FlowState-r1.1 forecast Oct/24–Mar/25 · {len(valid_ids)} {ll}s{parent_label}:",
         "charts": [fig],
         "tables": [df],
         "export_df": export_df,
@@ -1061,9 +1067,9 @@ def make_excel_bytes():
             for id_ in sorted(hist_d.keys()):
                 row = {"ID": id_}
                 for i, p in enumerate(PERIODS_HIST):
-                    row[f"P.{p}"] = round(hist_d[id_][i], 2)
+                    row[plabel(p)] = round(hist_d[id_][i], 2)
                 for i, p in enumerate(PERIODS_FORECAST):
-                    row[f"P.{p} (FC)"] = round(fc_d.get(id_, [0] * 6)[i], 2)
+                    row[f"{plabel(p)} (FC)"] = round(fc_d.get(id_, [0] * 6)[i], 2)
                 row["Hist CAGR"] = f"{cagr(hist_d[id_]):+.1f}%"
                 row["FC CAGR"]   = f"{cagr(fc_d.get(id_, [1, 1])):+.1f}%"
                 rows.append(row)

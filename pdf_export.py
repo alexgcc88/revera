@@ -123,6 +123,7 @@ def _table_style(header_bg=DARK2):
 # ── MATPLOTLIB CHART BUILDERS ──────────────────────────────────────────────
 def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
     """Full history + forecast area chart, blue/orange, matches FlowState-r1.1 plot style."""
+    from data import PERIOD_LABELS as _PL
     hist_agg = [sum(bu_hist[bu][i] for bu in bu_hist) for i in range(len(hist_periods))]
     fc_agg   = [sum(bu_fc[bu][i]   for bu in bu_fc)   for i in range(len(fc_periods))]
 
@@ -130,12 +131,12 @@ def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG2)
 
-    ax.fill_between(hist_periods, hist_agg, alpha=0.45, color=BLUE_C, label="Historical Revenue (P.1–42)")
+    ax.fill_between(hist_periods, hist_agg, alpha=0.45, color=BLUE_C, label="Historical Revenue (Apr/21–Sep/24)")
     ax.plot(hist_periods, hist_agg, color=BLUE_C, linewidth=1.2)
 
     x_fc = [hist_periods[-1]] + fc_periods
     y_fc = [hist_agg[-1]] + fc_agg
-    ax.fill_between(x_fc, y_fc, alpha=0.45, color=ORNG_C, label="FlowState-r1.1 Forecast (P.43–48)")
+    ax.fill_between(x_fc, y_fc, alpha=0.45, color=ORNG_C, label="FlowState-r1.1 Forecast (Oct/24–Mar/25)")
     ax.plot(x_fc, y_fc, color=ORNG_C, linewidth=2, marker="o", markersize=5)
     for x, y in zip(fc_periods, fc_agg):
         ax.annotate(f"{y/1e6:.0f}M", (x, y), textcoords="offset points",
@@ -144,8 +145,12 @@ def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
     ax.axvline(x=42.5, color="white", linewidth=0.8, linestyle="--", alpha=0.35)
     ax.text(43.2, max(fc_agg)*0.92, "forecast →", fontsize=8, color=SLATE_C)
 
+    # Calendar month tick labels every 6 periods
+    tick_ps = [p for p in hist_periods if (p - 1) % 6 == 0] + list(fc_periods)
+    ax.set_xticks(tick_ps)
+    ax.set_xticklabels([_PL.get(p, str(p)) for p in tick_ps], rotation=45, ha="right", fontsize=7.5)
+
     ax.yaxis.set_major_formatter(FuncFormatter(_mfmt))
-    ax.set_xlabel("Period", color=SLATE_C, fontsize=9)
     ax.set_ylabel("Total Revenue", color=SLATE_C, fontsize=9)
     ax.tick_params(colors=SLATE_C, labelsize=8)
     for spine in ax.spines.values(): spine.set_edgecolor("#1e2a3a")
@@ -156,6 +161,7 @@ def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
 
 def _chart_bu_fc(bu_fc, fc_periods):
     """BU-level forecast line chart."""
+    from data import PERIOD_LABELS as _PL
     fig, ax = plt.subplots(figsize=(10.5, 2.8))
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG2)
@@ -164,30 +170,34 @@ def _chart_bu_fc(bu_fc, fc_periods):
         ax.plot(fc_periods, vals, marker="o", markersize=4,
                 color=CHART_COLORS[i % len(CHART_COLORS)], linewidth=2, label=bu)
 
+    ax.set_xticks(fc_periods)
+    ax.set_xticklabels([_PL.get(p, str(p)) for p in fc_periods], rotation=45, ha="right", fontsize=8)
     ax.yaxis.set_major_formatter(FuncFormatter(_mfmt))
-    ax.set_xlabel("Period", color=SLATE_C, fontsize=9)
     ax.tick_params(colors=SLATE_C, labelsize=8)
     for spine in ax.spines.values(): spine.set_edgecolor("#1e2a3a")
     ax.grid(axis="y", color="#1e2a3a", linewidth=0.5)
     ax.legend(facecolor=BG2, edgecolor="#1e2a3a", labelcolor=LIGHT_C, fontsize=8)
-    ax.set_title("Revenue Forecast by Business Unit (P.43–48)", color=LIGHT_C, fontsize=10, pad=8)
+    ax.set_title("Revenue Forecast by Business Unit (Oct/24–Mar/25)", color=LIGHT_C, fontsize=10, pad=8)
     return _fig_to_img(fig, 16, 6)
 
 def _chart_bu_hist(bu_hist, hist_periods):
     """BU-level historical revenue line chart."""
+    from data import PERIOD_LABELS as _PL
     fig, ax = plt.subplots(figsize=(10.5, 3.2))
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG2)
     for i, (bu, vals) in enumerate(sorted(bu_hist.items())):
         ax.plot(hist_periods, vals, marker="o", markersize=3,
                 color=CHART_COLORS[i % len(CHART_COLORS)], linewidth=1.8, label=bu)
+    tick_ps = [p for p in hist_periods if (p - 1) % 6 == 0]
+    ax.set_xticks(tick_ps)
+    ax.set_xticklabels([_PL.get(p, str(p)) for p in tick_ps], rotation=45, ha="right", fontsize=7.5)
     ax.yaxis.set_major_formatter(FuncFormatter(_mfmt))
-    ax.set_xlabel("Period", color=SLATE_C, fontsize=9)
     ax.tick_params(colors=SLATE_C, labelsize=8)
     for spine in ax.spines.values(): spine.set_edgecolor("#1e2a3a")
     ax.grid(axis="y", color="#1e2a3a", linewidth=0.5)
     ax.legend(facecolor=BG2, edgecolor="#1e2a3a", labelcolor=LIGHT_C, fontsize=8)
-    ax.set_title("Historical Revenue by Business Unit (P.1–42)", color=LIGHT_C, fontsize=10, pad=8)
+    ax.set_title("Historical Revenue by Business Unit (Apr/21–Sep/24)", color=LIGHT_C, fontsize=10, pad=8)
     return _fig_to_img(fig, 16, 4.5)
 
 def _chart_top_segs(seg_fc, fc_periods, top_n=6):
@@ -216,7 +226,9 @@ def _chart_top_segs(seg_fc, fc_periods, top_n=6):
 def generate_pdf():
     """Generate the Revera business report. Returns PDF bytes."""
     from data import (BU_HIST, BU_FC, SEG_HIST, SEG_FC,
-                      PERIODS_HIST, PERIODS_FORECAST, SEG_TO_BU)
+                      PERIODS_HIST, PERIODS_FORECAST, SEG_TO_BU, PERIOD_LABELS)
+    def _plabel(p):
+        return PERIOD_LABELS.get(p, f"P.{p}")
 
     _img_buffers.clear()
     S   = _styles()
@@ -236,7 +248,7 @@ def generate_pdf():
     story.append(HRFlowable(width="100%", thickness=2, color=TEAL, spaceAfter=14))
     story.append(Paragraph("Revera", S["title"]))
     story.append(Paragraph("Siemens Advanta · Revenue Forecast Intelligence Report", S["subtitle"]))
-    story.append(Paragraph("FlowState-r1.1 · Bottom-Up Hierarchical Aggregation · Periods 43–48", S["small"]))
+    story.append(Paragraph("FlowState-r1.1 · Bottom-Up Hierarchical Aggregation · Oct/24–Mar/25", S["small"]))
     story.append(Paragraph(f"Generated {now}", S["right"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=SLATE, spaceBefore=10, spaceAfter=18))
 
@@ -253,9 +265,9 @@ def generate_pdf():
     best_bu   = max(bu_totals, key=bu_totals.get)
 
     kpis = [
-        (_fmt(total_p48),          "Total Forecast P.48",    "all BUs"),
-        (f"+{fc_growth}%",         "Forecast Growth",         "P.43 → P.48"),
-        (f"+{h_cagr}%",            "Historical CAGR",         "P.1 → P.42"),
+        (_fmt(total_p48),          "Total Forecast Mar/25",  "all BUs"),
+        (f"+{fc_growth}%",         "Forecast Growth",         "Oct/24 → Mar/25"),
+        (f"+{h_cagr}%",            "Historical CAGR",         "Apr/21 → Sep/24"),
         (best_bu,                  "Top Forecast BU",         f"{_fmt(bu_totals[best_bu])} total"),
     ]
     col_w = (PAGE_W - 2*MARGIN) / 4
@@ -281,33 +293,33 @@ def generate_pdf():
     top3_segs = sorted(SEG_FC, key=lambda s: sum(SEG_FC[s]), reverse=True)[:3]
     top3_str  = ", ".join(f"{s} ({_fmt(sum(SEG_FC[s])//6)} avg/period)" for s in top3_segs)
     story.append(Paragraph(
-        f"Siemens Advanta is forecast to reach <b>{_fmt(total_p48)}</b> in aggregate revenue by Period 48, "
-        f"a <b>+{fc_growth}%</b> increase over the forecast horizon (P.43–P.48). "
-        f"Historically, aggregate revenue grew at an annualised CAGR of <b>{h_cagr}%</b> across 42 monthly periods (3.5 years). "
+        f"Siemens Advanta is forecast to reach <b>{_fmt(total_p48)}</b> in aggregate revenue by Mar/25, "
+        f"a <b>+{fc_growth}%</b> increase over the forecast horizon (Oct/24–Mar/25). "
+        f"Historically, aggregate revenue grew at an annualised CAGR of <b>{h_cagr}%</b> across 42 monthly periods (Apr/21–Sep/24). "
         f"<b>{best_bu}</b> leads the forecast with the highest total projected volume. "
         f"The top three segments by forecast volume are: {top3_str}.",
         S["body"]))
 
     # ── HISTORICAL + FORECAST CHART ────────────────────────────────────────
-    story.append(Paragraph("Revenue: Full History and Forecast (P.1–48)", S["section"]))
+    story.append(Paragraph("Revenue: Full History and Forecast (Apr/21–Mar/25)", S["section"]))
     story.append(_chart_hist_fc(BU_HIST, BU_FC, PERIODS_HIST, PERIODS_FORECAST))
     story.append(Paragraph(
-        "Blue: historical revenue (P.1–42) · Orange: FlowState-r1.1 forecast (P.43–48). "
+        "Blue: historical revenue (Apr/21–Sep/24) · Orange: FlowState-r1.1 forecast (Oct/24–Mar/25). "
         "Dashed line marks the forecast boundary.", S["small"]))
 
     # ── PAGE BREAK ─────────────────────────────────────────────────────────
     story.append(PageBreak())
 
     # ── BU CHARTS (page 2) ────────────────────────────────────────────────
-    story.append(Paragraph("Historical Revenue by Business Unit (P.1–42)", S["section"]))
+    story.append(Paragraph("Historical Revenue by Business Unit (Apr/21–Sep/24)", S["section"]))
     story.append(_chart_bu_hist(BU_HIST, PERIODS_HIST))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("Revenue Forecast by Business Unit (P.43–48)", S["section"]))
+    story.append(Paragraph("Revenue Forecast by Business Unit (Oct/24–Mar/25)", S["section"]))
     story.append(_chart_bu_fc(BU_FC, PERIODS_FORECAST))
 
     # ── BU FORECAST TABLE ──────────────────────────────────────────────────
-    story.append(Paragraph("Forecast by Business Unit (P.43–48)", S["section"]))
-    hdr = ["BU"] + [f"P.{p}" for p in PERIODS_FORECAST] + ["CAGR", "Total P.43-48"]
+    story.append(Paragraph("Forecast by Business Unit (Oct/24–Mar/25)", S["section"]))
+    hdr = ["BU"] + [_plabel(p) for p in PERIODS_FORECAST] + ["CAGR", "Total Oct/24-Mar/25"]
     rows = [hdr]
     for bu in sorted(BU_FC):
         v = BU_FC[bu]
@@ -325,7 +337,7 @@ def generate_pdf():
     # ── TOP 10 SEGMENTS TABLE ──────────────────────────────────────────────
     story.append(Paragraph("Top 10 Segments — Detailed Forecast", S["section"]))
     top10 = sorted(SEG_FC, key=lambda s: sum(SEG_FC[s]), reverse=True)[:10]
-    shdr  = ["Segment", "BU", "P.43", "P.48", "CAGR", "Avg/Period"]
+    shdr  = ["Segment", "BU", "Oct/24", "Mar/25", "CAGR", "Avg/Period"]
     srows = [shdr]
     for seg in top10:
         v = SEG_FC[seg]

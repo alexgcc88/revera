@@ -223,7 +223,7 @@ chips = [
     ("Compare top 2 segments",   "Compare the top 2 segments by revenue"),
     ("Trend analysis",           "Show trend analysis for all BUs"),
     ("Executive summary",        "Executive summary"),
-    ("What changed most?",       "What changed most between P.41 and P.42?"),
+    ("What changed most?",       "What changed most between Aug/24 and Sep/24?"),
 ]
 for i, (label, query) in enumerate(chips):
     with cols[i]:
@@ -241,7 +241,7 @@ with st.container():
             <div class="agent-label">Revera</div>
             Hello! I'm <b style="color:#00e5b8">Revera</b>, the Siemens Advanta forecast intelligence agent.
             I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 24 segments and 134 subsegments</b> —
-            42 historical periods plus a 6-period FlowState-r1.1 forecast (P.43–48), Bottom-Up aggregated
+            42 historical periods (Apr/21–Sep/24) plus a 6-period FlowState-r1.1 forecast (Oct/24–Mar/25), Bottom-Up aggregated
             (R² 0.9871 · wMAPE 9.40%).<br><br>
             Ask me anything — I can show overviews, rankings, comparisons, trend analysis, and more.
         </div>
