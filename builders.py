@@ -1020,8 +1020,12 @@ def _heatmap(level, ll):
         textfont=dict(size=9, color="#dce8f5"),
         colorscale=[[0, "#ff4444"], [0.45, "#2a3f52"], [0.55, "#2a3f52"], [1, "#00e5b8"]],
         zmid=0,
+        zmin=-20,
+        zmax=20,
         showscale=True,
-        colorbar=dict(title=dict(text="CAGR %", font=dict(color="#6b7e96")), tickfont=dict(size=10, color="#6b7e96")),
+        colorbar=dict(title=dict(text="CAGR %", font=dict(color="#6b7e96")), tickfont=dict(size=10, color="#6b7e96"),
+                      tickvals=[-20, -10, 0, 10, 20],
+                      ticktext=["≤−20%", "−10%", "0%", "+10%", "≥+20%"]),
         xgap=2, ygap=2,
         y=y_labels,
         x=x_labels,
@@ -1029,7 +1033,7 @@ def _heatmap(level, ll):
     height = max(280, 80 * len(z))
     layout = {**PLOTLY_LAYOUT, "height": height}
     fig.update_layout(
-        title=dict(text=f"Growth Heatmap — {ll}s by CAGR (P.1–42)", font=dict(size=12, color="#dce8f5")),
+        title=dict(text=f"Growth Heatmap — {ll}s by CAGR (Apr/21–Sep/24)", font=dict(size=12, color="#dce8f5")),
         **layout
     )
 
