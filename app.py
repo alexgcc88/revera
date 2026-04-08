@@ -138,6 +138,13 @@ def _render_breadcrumb():
 st.logo("revera_icon.png")
 
 with st.sidebar:
+    st.markdown("""
+    <div style="padding:4px 0 8px 0;">
+      <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:600;color:#dce8f5;letter-spacing:0.12em;">REVERA</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:#38475a;letter-spacing:0.06em;">Forecast Intelligence</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Read from Streamlit secrets if available (Streamlit Cloud deploy)
     api_key = st.secrets.get("GROQ_API_KEY", "") if hasattr(st, "secrets") else ""
 
