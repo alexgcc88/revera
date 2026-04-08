@@ -111,7 +111,7 @@ def _table_style(header_bg=DARK2):
 
 # ── MATPLOTLIB CHART BUILDERS ──────────────────────────────────────────────
 def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
-    """Full history + forecast area chart, blue/orange, matches XGBoost plot style."""
+    """Full history + forecast area chart, blue/orange, matches FlowState-r1.1 plot style."""
     hist_agg = [sum(bu_hist[bu][i] for bu in bu_hist) for i in range(len(hist_periods))]
     fc_agg   = [sum(bu_fc[bu][i]   for bu in bu_fc)   for i in range(len(fc_periods))]
 
@@ -124,7 +124,7 @@ def _chart_hist_fc(bu_hist, bu_fc, hist_periods, fc_periods):
 
     x_fc = [hist_periods[-1]] + fc_periods
     y_fc = [hist_agg[-1]] + fc_agg
-    ax.fill_between(x_fc, y_fc, alpha=0.45, color=ORNG_C, label="XGBoost Forecast (P.43–48)")
+    ax.fill_between(x_fc, y_fc, alpha=0.45, color=ORNG_C, label="FlowState-r1.1 Forecast (P.43–48)")
     ax.plot(x_fc, y_fc, color=ORNG_C, linewidth=2, marker="o", markersize=5)
     for x, y in zip(fc_periods, fc_agg):
         ax.annotate(f"{y/1e6:.0f}M", (x, y), textcoords="offset points",
@@ -225,7 +225,7 @@ def generate_pdf():
     story.append(HRFlowable(width="100%", thickness=2, color=TEAL, spaceAfter=14))
     story.append(Paragraph("Revera", S["title"]))
     story.append(Paragraph("Siemens Advanta · Revenue Forecast Intelligence Report", S["subtitle"]))
-    story.append(Paragraph("XGBoost + MinT Hierarchical Reconciliation · Periods 43–48", S["small"]))
+    story.append(Paragraph("FlowState-r1.1 · Bottom-Up Hierarchical Aggregation · Periods 43–48", S["small"]))
     story.append(Paragraph(f"Generated {now}", S["right"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=SLATE, spaceBefore=10, spaceAfter=18))
 
@@ -281,7 +281,7 @@ def generate_pdf():
     story.append(Paragraph("Revenue: Full History and Forecast (P.1–48)", S["section"]))
     story.append(_chart_hist_fc(BU_HIST, BU_FC, PERIODS_HIST, PERIODS_FORECAST))
     story.append(Paragraph(
-        "Blue: historical revenue (P.1–42) · Orange: XGBoost + MinT reconciled forecast (P.43–48). "
+        "Blue: historical revenue (P.1–42) · Orange: FlowState-r1.1 forecast (P.43–48). "
         "Dashed line marks the forecast boundary.", S["small"]))
 
     # ── PAGE BREAK ─────────────────────────────────────────────────────────
@@ -347,20 +347,20 @@ def generate_pdf():
     # ── MODEL PERFORMANCE ──────────────────────────────────────────────────
     story.append(Paragraph("Model Performance", S["section"]))
     story.append(Paragraph(
-        "XGBoost model with Walk-Forward Cross-Validation. "
-        "MinT shrink reconciliation applied at aggregation level for hierarchical consistency.", S["body"]))
+        "FlowState-r1.1 (Google) with Walk-Forward Cross-Validation. "
+        "Bottom-up aggregation: subsegment → segment → BU.", S["body"]))
     pdata = [
         ["Metric",        "Value",        "Notes"],
-        ["Model",         "XGBoost",      "Walk-Forward CV"],
-        ["Reconciliation","MinT shrink",  "Aggregation level"],
-        ["R²",            "0.9866",       "Excellent fit"],
-        ["wMAPE",         "10.70%",       "Aggregation level"],
-        ["RMSE",          "7,405,830 €",  "Aggregation level"],
-        ["MAE",           "3,634,910 €",  "Aggregation level"],
+        ["Model",         "FlowState-r1.1",      "Walk-Forward CV"],
+        ["Reconciliation","Bottom-Up",  "Subsegment level"],
+        ["R²",            "0.9871",       "Excellent fit"],
+        ["wMAPE",         "9.40%",       "Subsegment level"],
+        ["RMSE",          "7,743,554 €",  "Subsegment level"],
+        ["MAE",           "3,663,463 €",  "Subsegment level"],
     ]
     pt  = Table(pdata, colWidths=[4*cm, 4*cm, 5*cm])
     pts = _table_style()
-    pts.add("TEXTCOLOR", (1,1), (1,1), TEAL)   # XGBoost value teal
+    pts.add("TEXTCOLOR", (1,1), (1,1), TEAL)   # FlowState-r1.1 value teal
     pts.add("TEXTCOLOR", (1,3), (1,3), TEAL)   # R² value teal
     pt.setStyle(pts)
     story.append(pt)

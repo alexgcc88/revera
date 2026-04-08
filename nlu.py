@@ -9,7 +9,7 @@ The data has three hierarchy levels:
 - Segment (24 total): SSI02710, SSI02780, SSI02782, SSI02784, SSI02786, SSI02799, SSI03781, SSI03782, SSI03784, SSI03799, SSI04781, SSI04783, SSI04784, SSI04799, SSI07081, SSI07082, SSI07083
 - Subsegment (134 total, IDs like SSI0278002, SSI0478150, etc.)
 Available periods: 37 through 48 (index 0=P.37, 1=P.38, ..., 5=P.42, 6=P.43, 7=P.44, 8=P.45, 9=P.46, 10=P.47, 11=P.48).
-P.37–42 are historical data. P.43–48 are XGBoost forecast data.
+P.37–42 are historical data. P.43–48 are FlowState-r1.1 forecast data.
 
 Return ONLY valid JSON, no explanation, no markdown fences. Schema:
 {

@@ -160,13 +160,13 @@ with st.sidebar:
     st.divider()
     st.markdown("**Model Performance**")
     st.markdown("""
-    <div class="sb-metric"><span class="sb-key">Model</span><span class="sb-val">XGBoost</span></div>
+    <div class="sb-metric"><span class="sb-key">Model</span><span class="sb-val">FlowState-r1.1</span></div>
     <div class="sb-metric"><span class="sb-key">Validation</span><span class="sb-val">Walk-Forward CV</span></div>
-    <div class="sb-metric"><span class="sb-key">Reconciliation</span><span class="sb-val">MinT shrink</span></div>
-    <div class="sb-metric"><span class="sb-key">R²</span><span class="sb-val">0.9866</span></div>
-    <div class="sb-metric"><span class="sb-key">wMAPE</span><span class="sb-val">10.70%</span></div>
-    <div class="sb-metric"><span class="sb-key">RMSE</span><span class="sb-val">7.41M €</span></div>
-    <div class="sb-metric"><span class="sb-key">MAE</span><span class="sb-val">3.63M €</span></div>
+    <div class="sb-metric"><span class="sb-key">Reconciliation</span><span class="sb-val">Bottom-Up</span></div>
+    <div class="sb-metric"><span class="sb-key">R²</span><span class="sb-val">0.9871</span></div>
+    <div class="sb-metric"><span class="sb-key">wMAPE</span><span class="sb-val">9.40%</span></div>
+    <div class="sb-metric"><span class="sb-key">RMSE</span><span class="sb-val">7.74M €</span></div>
+    <div class="sb-metric"><span class="sb-key">MAE</span><span class="sb-val">3.66M €</span></div>
     """, unsafe_allow_html=True)
 
     st.divider()
@@ -199,7 +199,7 @@ st.markdown("""
     <span style="color:#00e5b8">◆</span> Forecast Intelligence
   </div>
   <div style="font-family:'DM Mono',monospace;font-size:10px;color:#6b7e96;display:flex;align-items:center;gap:8px;">
-    SIEMENS ADVANTA · MINT HIERARCHICAL RECONCILIATION
+    SIEMENS ADVANTA · BOTTOM-UP HIERARCHICAL AGGREGATION
     <span style="background:rgba(0,229,184,0.09);color:#00e5b8;padding:2px 8px;border-radius:20px;border:1px solid rgba(0,229,184,0.2);">● model active</span>
   </div>
 </div>
@@ -235,8 +235,8 @@ with st.container():
             <div class="agent-label">Revera</div>
             Hello! I'm <b style="color:#00e5b8">Revera</b>, the Siemens Advanta forecast intelligence agent.
             I have access to Revenue data across <b style="color:#00e5b8">4 BUs, 24 segments and 134 subsegments</b> —
-            42 historical periods plus a 6-period XGBoost forecast (P.43–48), reconciled with MinT shrink
-            (R² 0.9866 · wMAPE 10.70% · Walk-Forward CV).<br><br>
+            42 historical periods plus a 6-period FlowState-r1.1 forecast (P.43–48), Bottom-Up aggregated
+            (R² 0.9871 · wMAPE 9.40% · Walk-Forward CV).<br><br>
             Ask me anything — I can show overviews, rankings, comparisons, trend analysis, and more.
         </div>
         """, unsafe_allow_html=True)
