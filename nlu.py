@@ -1,5 +1,25 @@
 import json
+import re
 from groq import Groq
+
+# Calendar month → period number (P.1=Apr/21 … P.48=Mar/25)
+_MONTH_TO_PERIOD = {
+    "apr/21":  1, "may/21":  2, "jun/21":  3, "jul/21":  4, "aug/21":  5, "sep/21":  6,
+    "oct/21":  7, "nov/21":  8, "dec/21":  9, "jan/22": 10, "feb/22": 11, "mar/22": 12,
+    "apr/22": 13, "may/22": 14, "jun/22": 15, "jul/22": 16, "aug/22": 17, "sep/22": 18,
+    "oct/22": 19, "nov/22": 20, "dec/22": 21, "jan/23": 22, "feb/23": 23, "mar/23": 24,
+    "apr/23": 25, "may/23": 26, "jun/23": 27, "jul/23": 28, "aug/23": 29, "sep/23": 30,
+    "oct/23": 31, "nov/23": 32, "dec/23": 33, "jan/24": 34, "feb/24": 35, "mar/24": 36,
+    "apr/24": 37, "may/24": 38, "jun/24": 39, "jul/24": 40, "aug/24": 41, "sep/24": 42,
+    "oct/24": 43, "nov/24": 44, "dec/24": 45, "jan/25": 46, "feb/25": 47, "mar/25": 48,
+}
+
+def _preprocess(question: str) -> str:
+    """Replace calendar month labels with P.XX so the LLM always gets numeric periods."""
+    q = question
+    for month, period in _MONTH_TO_PERIOD.items():
+        q = re.sub(re.escape(month), f"P.{period}", q, flags=re.IGNORECASE)
+    return q
 
 NLU_SYSTEM = """You are the NLU engine for Revera, a Revenue forecast agent for Siemens Advanta.
 Your ONLY job is to parse a user question and return a JSON object.
@@ -10,12 +30,6 @@ The data has three hierarchy levels:
 - Subsegment (134 total, IDs like SSI0278002, SSI0478150, etc.)
 Available periods: 37 through 48 (index 0=P.37, 1=P.38, ..., 5=P.42, 6=P.43, 7=P.44, 8=P.45, 9=P.46, 10=P.47, 11=P.48).
 P.37–42 are historical data. P.43–48 are FlowState-r1.1 forecast data.
-
-CALENDAR MONTH MAPPING — users may refer to periods by calendar month/year instead of P.XX numbers. Map them as follows:
-Apr/24=P.37(idx 0), May/24=P.38(idx 1), Jun/24=P.39(idx 2), Jul/24=P.40(idx 3),
-Aug/24=P.41(idx 4), Sep/24=P.42(idx 5), Oct/24=P.43(idx 6), Nov/24=P.44(idx 7),
-Dec/24=P.45(idx 8), Jan/25=P.46(idx 9), Feb/25=P.47(idx 10), Mar/25=P.48(idx 11).
-Examples: "what changed between Aug/24 and Sep/24?" → period_diff, periods=[4,5]; "show revenue in Oct/24" → single period, periods=[6].
 
 Return ONLY valid JSON, no explanation, no markdown fences. Schema:
 {
@@ -116,7 +130,7 @@ def parse_intent(question: str, api_key: str, history_json: str = "[]") -> dict:
         if content:
             messages.append({"role": role, "content": content})
             
-    messages.append({"role": "user", "content": question})
+    messages.append({"role": "user", "content": _preprocess(question)})
     
     def _call(model):
         return client.chat.completions.create(
