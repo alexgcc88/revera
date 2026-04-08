@@ -86,6 +86,13 @@ section[data-testid="stSidebar"] * { color: #dce8f5 !important; font-size: 13px 
     font-family: 'DM Mono', monospace; font-size: 10px; color: #38475a;
     text-transform: uppercase; letter-spacing: 0.08em; margin: 10px 0 4px 0;
 }
+
+/* Uniform height for all quick-chip and follow-up buttons */
+[data-testid="stHorizontalBlock"] .stButton button {
+    height: 56px;
+    white-space: normal;
+    line-height: 1.3;
+}
 </style>
 """, unsafe_allow_html=True)
 
